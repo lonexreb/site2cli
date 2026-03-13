@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from webcli.models import DiscoveredAPI, EndpointInfo, ParameterInfo
+from site2cli.models import DiscoveredAPI, EndpointInfo, ParameterInfo
 
 
 def _param_to_openapi(param: ParameterInfo) -> dict:
@@ -99,7 +99,7 @@ def generate_openapi_spec(api: DiscoveredAPI) -> dict:
             "title": f"{api.site_url} API",
             "description": api.description or f"Auto-discovered API for {api.site_url}",
             "version": "1.0.0",
-            "x-generated-by": "webcli",
+            "x-generated-by": "site2cli",
         },
         "servers": [{"url": api.base_url}],
         "paths": {},

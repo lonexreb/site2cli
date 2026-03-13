@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from webcli.config import get_config
-from webcli.models import SiteAction, SiteEntry, Tier
-from webcli.registry import SiteRegistry
-from webcli.tiers.browser_explorer import BrowserExplorer
-from webcli.tiers.cached_workflow import WorkflowPlayer, load_workflow
-from webcli.tiers.direct_api import DirectAPIExecutor
+from site2cli.config import get_config
+from site2cli.models import SiteAction, SiteEntry, Tier
+from site2cli.registry import SiteRegistry
+from site2cli.tiers.browser_explorer import BrowserExplorer
+from site2cli.tiers.cached_workflow import WorkflowPlayer, load_workflow
+from site2cli.tiers.direct_api import DirectAPIExecutor
 
 
 class Router:

@@ -6,7 +6,7 @@ import json
 
 import typer
 
-from webcli.models import SiteEntry
+from site2cli.models import SiteEntry
 
 
 def _type_str_to_python(type_str: str) -> type:
@@ -102,7 +102,7 @@ def _register_command(
             """Execute the API call."""
             import httpx
 
-            from webcli.auth.manager import AuthManager
+            from site2cli.auth.manager import AuthManager
 
             # Collect parameter values from context
             # In a real implementation, these would be Typer arguments

@@ -61,12 +61,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lonexreb/webcli"
-Repository = "https://github.com/lonexreb/webcli"
-Issues = "https://github.com/lonexreb/webcli/issues"
+Homepage = "https://github.com/lonexreb/site2cli"
+Repository = "https://github.com/lonexreb/site2cli"
+Issues = "https://github.com/lonexreb/site2cli/issues"
 
 [project.scripts]
-webcli = "webcli.cli:app"
+site2cli = "site2cli.cli:app"
 
 [tool.ruff]
 target-version = "py310"
@@ -83,7 +83,7 @@ markers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/webcli"]
+packages = ["src/site2cli"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/webcli"]
+include = ["src/site2cli"]

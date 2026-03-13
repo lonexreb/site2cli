@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from webcli.config import get_config
-from webcli.discovery.capture import TrafficCapture
+from site2cli.config import get_config
+from site2cli.discovery.capture import TrafficCapture
 
 if TYPE_CHECKING:
     from playwright.async_api import Page

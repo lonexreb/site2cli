@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import httpx
 
-from webcli.auth.manager import AuthManager
-from webcli.models import EndpointInfo, HealthStatus, SiteEntry
-from webcli.registry import SiteRegistry
+from site2cli.auth.manager import AuthManager
+from site2cli.models import EndpointInfo, HealthStatus, SiteEntry
+from site2cli.registry import SiteRegistry
 
 
 class HealthMonitor:

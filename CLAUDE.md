@@ -1,4 +1,4 @@
-# WebCLI
+# site2cli
 
 Turn any website into a CLI/API for AI agents.
 
@@ -9,7 +9,7 @@ Progressive Formalization: 3-tier system that auto-graduates from browser automa
 ## Project Structure
 
 ```
-src/webcli/
+src/site2cli/
 ├── cli.py              # Typer CLI entry point
 ├── config.py           # Configuration management
 ├── models.py           # Pydantic v2 data models
@@ -48,32 +48,38 @@ src/webcli/
 ## Testing
 
 ```bash
-pytest                    # 65 unit/integration tests (no network)
+pytest                    # 150 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
 
 **Test files:**
-- `test_models.py` — Pydantic model validation (8 tests)
+- `test_models.py` — Pydantic model validation (15 tests)
 - `test_registry.py` — SQLite registry CRUD (10 tests)
-- `test_analyzer.py` — Traffic analysis & grouping (12 tests)
+- `test_analyzer.py` — Traffic analysis & grouping (24 tests)
 - `test_spec_generator.py` — OpenAPI spec generation (6 tests)
 - `test_client_generator.py` — Python client code gen (4 tests)
-- `test_cli.py` — CLI commands via CliRunner (5 tests)
-- `test_integration_pipeline.py` — Full pipeline with mock data (11 tests)
+- `test_cli.py` — CLI commands via CliRunner (17 tests)
+- `test_integration_pipeline.py` — Full pipeline with mock data (12 tests)
 - `test_integration_live.py` — Live API tests, marked `@pytest.mark.live` (6 tests)
-- `test_tier_promotion.py` — Tier fallback & auto-promotion (9 tests)
+- `test_tier_promotion.py` — Tier fallback & auto-promotion (6 tests)
+- `test_config.py` — Config singleton, dirs, YAML save/load (8 tests)
+- `test_auth.py` — Keyring store/get, auth headers (11 tests)
+- `test_health.py` — Health check with mock httpx (8 tests)
+- `test_router.py` — Router execution, fallback, promotion (15 tests)
+- `test_community.py` — Export/import roundtrip (6 tests)
+- `test_generated_code.py` — compile() validation (8 tests)
 
-**Total: 71 tests, all passing.**
+**Total: 156 tests (150 + 6 live), all passing.**
 
 ## Optional Dependencies
 
 Heavy deps are optional to keep base install lightweight:
-- `webcli[browser]` — Playwright, browser-cookie3
-- `webcli[llm]` — Anthropic SDK
-- `webcli[mcp]` — MCP Python SDK
-- `webcli[all]` — Everything
-- `webcli[dev]` — All + pytest, ruff, mypy
+- `site2cli[browser]` — Playwright, browser-cookie3
+- `site2cli[llm]` — Anthropic SDK
+- `site2cli[mcp]` — MCP Python SDK
+- `site2cli[all]` — Everything
+- `site2cli[dev]` — All + pytest, ruff, mypy
 
 ## Key Docs
 
@@ -87,5 +93,5 @@ Heavy deps are optional to keep base install lightweight:
 ```bash
 pip install -e ".[dev]"
 pytest
-webcli --help
+site2cli --help
 ```

@@ -1,4 +1,4 @@
-"""WebCLI — Turn any website into a CLI/API for AI agents."""
+"""site2cli — Turn any website into a CLI/API for AI agents."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from webcli import __version__
+from site2cli import __version__
 
 app = typer.Typer(
-    name="webcli",
+    name="site2cli",
     help="Turn any website into a CLI/API for AI agents.",
     no_args_is_help=True,
 )
@@ -23,8 +23,8 @@ console = Console()
 
 
 def _get_registry():
-    from webcli.config import get_config
-    from webcli.registry import SiteRegistry
+    from site2cli.config import get_config
+    from site2cli.registry import SiteRegistry
 
     config = get_config()
     return SiteRegistry(config.db_path)
@@ -58,12 +58,12 @@ def discover(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output spec to file"),
 ) -> None:
     """Discover API endpoints for a website by capturing network traffic."""
-    from webcli.config import get_config
-    from webcli.discovery.analyzer import TrafficAnalyzer
-    from webcli.discovery.capture import TrafficCapture
-    from webcli.discovery.client_generator import generate_client_code, save_client
-    from webcli.discovery.spec_generator import generate_openapi_spec, save_spec
-    from webcli.models import (
+    from site2cli.config import get_config
+    from site2cli.discovery.analyzer import TrafficAnalyzer
+    from site2cli.discovery.capture import TrafficCapture
+    from site2cli.discovery.client_generator import generate_client_code, save_client
+    from site2cli.discovery.spec_generator import generate_openapi_spec, save_spec
+    from site2cli.models import (
         DiscoveredAPI,
         SiteAction,
         SiteEntry,
@@ -87,7 +87,7 @@ def discover(
     async def do_capture():
         goal = action or "explore the main features"
         if action:
-            from webcli.tiers.browser_explorer import BrowserExplorer
+            from site2cli.tiers.browser_explorer import BrowserExplorer
 
             explorer = BrowserExplorer()
             result = await explorer.explore(url, goal)
@@ -191,7 +191,7 @@ def run(
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ) -> None:
     """Execute a discovered action on a site."""
-    from webcli.router import Router
+    from site2cli.router import Router
 
     registry = _get_registry()
     router = Router(registry)
@@ -230,7 +230,7 @@ def sites_list() -> None:
     if not sites:
         console.print(
             "[yellow]No sites discovered yet.[/yellow]"
-            " Run `webcli discover <url>` to get started."
+            " Run `site2cli discover <url>` to get started."
         )
         return
 
@@ -311,7 +311,7 @@ def auth_login(
     method: str = typer.Option("cookie", help="Auth method: cookie, api-key, token"),
 ) -> None:
     """Set up authentication for a site."""
-    from webcli.auth.manager import AuthManager
+    from site2cli.auth.manager import AuthManager
 
     auth = AuthManager()
 
@@ -338,7 +338,7 @@ def auth_login(
 @auth_app.command("logout")
 def auth_logout(domain: str = typer.Argument(help="Site domain")) -> None:
     """Clear stored authentication for a site."""
-    from webcli.auth.manager import AuthManager
+    from site2cli.auth.manager import AuthManager
 
     AuthManager().clear_auth(domain)
     console.print(f"[green]Cleared auth for {domain}[/green]")
@@ -356,16 +356,19 @@ def mcp_generate(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
 ) -> None:
     """Generate an MCP server for a discovered site."""
-    from webcli.config import get_config
-    from webcli.discovery.spec_generator import load_spec
-    from webcli.generators.mcp_gen import generate_mcp_server_code, save_mcp_server
+    from site2cli.config import get_config
+    from site2cli.discovery.spec_generator import load_spec
+    from site2cli.generators.mcp_gen import generate_mcp_server_code, save_mcp_server
 
     config = get_config()
     registry = _get_registry()
     site = registry.get_site(domain)
 
     if not site:
-        console.print(f"[red]Site {domain} not found.[/red] Run `webcli discover {domain}` first.")
+        console.print(
+            f"[red]Site {domain} not found.[/red]"
+            f" Run `site2cli discover {domain}` first."
+        )
         raise typer.Exit(1)
 
     if not site.openapi_spec_path:
@@ -390,7 +393,7 @@ def mcp_serve(
     domain: str = typer.Argument(help="Site domain to serve MCP for"),
 ) -> None:
     """Start an MCP server for a discovered site."""
-    from webcli.config import get_config
+    from site2cli.config import get_config
 
     config = get_config()
     server_path = config.data_dir / "mcp" / f"{domain.replace('.', '_')}_mcp.py"
@@ -417,7 +420,7 @@ def health_check(
     domain: Optional[str] = typer.Argument(None, help="Site domain (all if omitted)"),
 ) -> None:
     """Check health of discovered APIs."""
-    from webcli.health.monitor import HealthMonitor
+    from site2cli.health.monitor import HealthMonitor
 
     registry = _get_registry()
     monitor = HealthMonitor(registry)
@@ -453,7 +456,7 @@ def health_repair(
     action: str = typer.Argument(help="Action to repair"),
 ) -> None:
     """Attempt to auto-repair a broken action."""
-    from webcli.health.self_heal import SelfHealer
+    from site2cli.health.self_heal import SelfHealer
 
     registry = _get_registry()
     healer = SelfHealer(registry)
@@ -480,7 +483,7 @@ def community_export(
     output: Optional[str] = typer.Option(None, "--output", "-o"),
 ) -> None:
     """Export a site spec for community sharing."""
-    from webcli.community.registry import CommunityRegistry
+    from site2cli.community.registry import CommunityRegistry
 
     registry = _get_registry()
     community = CommunityRegistry(registry)
@@ -490,10 +493,10 @@ def community_export(
 
 @community_app.command("import")
 def community_import(
-    path: str = typer.Argument(help="Path to .webcli.json bundle"),
+    path: str = typer.Argument(help="Path to .site2cli.json bundle"),
 ) -> None:
     """Import a community-shared site spec."""
-    from webcli.community.registry import CommunityRegistry
+    from site2cli.community.registry import CommunityRegistry
 
     registry = _get_registry()
     community = CommunityRegistry(registry)
@@ -504,7 +507,7 @@ def community_import(
 @community_app.command("list")
 def community_list() -> None:
     """List available community specs."""
-    from webcli.community.registry import CommunityRegistry
+    from site2cli.community.registry import CommunityRegistry
 
     registry = _get_registry()
     community = CommunityRegistry(registry)
@@ -533,7 +536,7 @@ app.add_typer(config_app, name="config")
 @config_app.command("show")
 def config_show() -> None:
     """Show current configuration."""
-    from webcli.config import get_config
+    from site2cli.config import get_config
 
     config = get_config()
     console.print(json.dumps(config.model_dump(mode="json"), indent=2, default=str))
@@ -545,7 +548,7 @@ def config_set(
     value: str = typer.Argument(help="Config value"),
 ) -> None:
     """Set a configuration value."""
-    from webcli.config import get_config, reset_config
+    from site2cli.config import get_config, reset_config
 
     config = get_config()
     parts = key.split(".")
@@ -562,10 +565,10 @@ def config_set(
 
 @app.command()
 def setup() -> None:
-    """Set up WebCLI: install browsers, validate dependencies, create directories."""
+    """Set up site2cli: install browsers, validate dependencies, create directories."""
     import sys
 
-    from webcli.config import get_config
+    from site2cli.config import get_config
 
     config = get_config()
     config.ensure_dirs()
@@ -601,7 +604,7 @@ def setup() -> None:
     except ImportError:
         console.print(
             "[yellow]SKIP[/yellow] Playwright not installed"
-            " (install with: pip install webcli[browser])"
+            " (install with: pip install site2cli[browser])"
         )
 
     # Check Anthropic SDK
@@ -621,7 +624,7 @@ def setup() -> None:
     except ImportError:
         console.print(
             "[yellow]SKIP[/yellow] Anthropic SDK not installed"
-            " (install with: pip install webcli[llm])"
+            " (install with: pip install site2cli[llm])"
         )
 
     # Check MCP SDK
@@ -633,7 +636,7 @@ def setup() -> None:
     except ImportError:
         console.print(
             "[yellow]SKIP[/yellow] MCP SDK not installed"
-            " (install with: pip install webcli[mcp])"
+            " (install with: pip install site2cli[mcp])"
         )
 
     # Check keyring
@@ -645,13 +648,13 @@ def setup() -> None:
         console.print(f"[yellow]WARN[/yellow] Keyring issue: {e}")
 
     console.print()
-    console.print("[bold]Setup complete.[/bold] Run `webcli discover <url>` to get started.")
+    console.print("[bold]Setup complete.[/bold] Run `site2cli discover <url>` to get started.")
 
 
 @app.command()
 def version() -> None:
-    """Show WebCLI version."""
-    console.print(f"WebCLI v{__version__}")
+    """Show site2cli version."""
+    console.print(f"site2cli v{__version__}")
 
 
 if __name__ == "__main__":

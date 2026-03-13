@@ -6,8 +6,8 @@ import json
 import re
 from urllib.parse import parse_qs, urlparse
 
-from webcli.config import get_config
-from webcli.models import (
+from site2cli.config import get_config
+from site2cli.models import (
     AuthType,
     CapturedExchange,
     EndpointInfo,

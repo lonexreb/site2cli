@@ -1,4 +1,4 @@
-# Deep Research: WebCLI Market Analysis & Strategic Positioning
+# Deep Research: site2cli Market Analysis & Strategic Positioning
 
 **Date**: 2026-03-11
 **Sources**: Live web research + agent analysis
@@ -38,9 +38,9 @@ An **always-on local AI agent** running on a dedicated Mac mini:
 
 **Key insight**: This is Perplexity's bet that AI agents need **persistent local presence** — not just cloud API calls, but always-on access to your actual computer.
 
-### How WebCLI Relates to Perplexity
+### How site2cli Relates to Perplexity
 
-| Dimension | Perplexity Computer | WebCLI |
+| Dimension | Perplexity Computer | site2cli |
 |-----------|-------------------|--------|
 | Target user | Consumers, enterprise | Developers, AI engineers |
 | Interface | Chat/GUI | CLI/MCP/API |
@@ -84,7 +84,7 @@ An **always-on local AI agent** running on a dedicated Mac mini:
 - **Works with**: Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, Goose, OpenCode, Windsurf
 
 **How it differs from WebCLI:**
-| | agent-browser | WebCLI |
+| | agent-browser | site2cli |
 |---|---|---|
 | Goal | Better browser automation | Eliminate browser automation |
 | Approach | CLI commands for browser control | Auto-generate API clients from observed traffic |

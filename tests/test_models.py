@@ -1,6 +1,6 @@
 """Tests for Pydantic models."""
 
-from webcli.models import (
+from site2cli.models import (
     AuthType,
     CapturedExchange,
     CapturedRequest,
@@ -116,3 +116,76 @@ def test_serialization_roundtrip():
     restored = SiteEntry.model_validate_json(json_str)
     assert restored.domain == site.domain
     assert restored.actions[0].name == "get_data"
+
+
+# --- Additional model tests ---
+
+
+def test_health_status_enum():
+    from site2cli.models import HealthStatus
+    assert HealthStatus.HEALTHY.value == "healthy"
+    assert HealthStatus.DEGRADED.value == "degraded"
+    assert HealthStatus.BROKEN.value == "broken"
+    assert HealthStatus.UNKNOWN.value == "unknown"
+
+
+def test_recorded_workflow_serialization():
+    workflow = RecordedWorkflow(
+        id="wf-1",
+        site_domain="example.com",
+        action_name="search",
+        steps=[
+            WorkflowStep(action="navigate", url="https://example.com"),
+            WorkflowStep(action="click", selector="#btn"),
+        ],
+        parameters=[ParameterInfo(name="q", required=True)],
+    )
+    json_str = workflow.model_dump_json()
+    restored = RecordedWorkflow.model_validate_json(json_str)
+    assert restored.id == "wf-1"
+    assert len(restored.steps) == 2
+    assert len(restored.parameters) == 1
+
+
+def test_captured_exchange_with_empty_bodies():
+    req = CapturedRequest(method="GET", url="https://example.com/api")
+    resp = CapturedResponse(status=204, body=None, content_type=None)
+    exchange = CapturedExchange(request=req, response=resp)
+    assert exchange.request.body is None
+    assert exchange.response.body is None
+    assert exchange.duration_ms == 0.0
+
+
+def test_parameter_info_defaults():
+    param = ParameterInfo(name="test_param")
+    assert param.location == "query"
+    assert param.param_type == "string"
+    assert param.required is False
+    assert param.description == ""
+    assert param.example is None
+
+
+def test_site_action_defaults():
+    action = SiteAction(name="test_action")
+    assert action.tier == Tier.BROWSER
+    assert action.success_count == 0
+    assert action.failure_count == 0
+    assert action.last_used is None
+    assert action.endpoint is None
+    assert action.workflow_id is None
+
+
+def test_discovered_api_defaults():
+    from site2cli.models import DiscoveredAPI
+    api = DiscoveredAPI(site_url="test.com", base_url="https://test.com")
+    assert api.auth_type == AuthType.NONE
+    assert api.endpoints == []
+    assert api.description == ""
+    assert api.discovered_at is not None
+
+
+def test_captured_header():
+    from site2cli.models import CapturedHeader
+    h = CapturedHeader(name="Content-Type", value="application/json")
+    assert h.name == "Content-Type"
+    assert h.value == "application/json"

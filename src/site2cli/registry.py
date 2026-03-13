@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from webcli.models import (
+from site2cli.models import (
     AuthType,
     HealthStatus,
     SiteAction,
@@ -146,7 +146,7 @@ class SiteRegistry:
         ).fetchall()
         actions = []
         for row in rows:
-            from webcli.models import EndpointInfo
+            from site2cli.models import EndpointInfo
 
             endpoint = None
             if row["endpoint_json"]:

@@ -7,8 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from webcli.config import get_config
-from webcli.models import ParameterInfo, RecordedWorkflow, WorkflowStep
+from site2cli.config import get_config
+from site2cli.models import ParameterInfo, RecordedWorkflow, WorkflowStep
 
 if TYPE_CHECKING:
     from playwright.async_api import Page

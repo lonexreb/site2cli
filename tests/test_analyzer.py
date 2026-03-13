@@ -1,12 +1,12 @@
 """Tests for traffic analysis."""
 
-from webcli.discovery.analyzer import (
+from site2cli.discovery.analyzer import (
     TrafficAnalyzer,
     _detect_auth_type,
     _infer_json_schema,
     _normalize_path,
 )
-from webcli.models import (
+from site2cli.models import (
     AuthType,
     CapturedExchange,
     CapturedHeader,
@@ -144,3 +144,112 @@ def test_detect_auth_none():
         _make_exchange("GET", "https://api.example.com/public"),
     ]
     assert _detect_auth_type(exchanges) == AuthType.NONE
+
+
+# --- Additional analyzer tests ---
+
+
+def test_normalize_path_mongodb_objectid():
+    assert _normalize_path("/api/docs/507f1f77bcf86cd799439011") == "/api/docs/{id}"
+
+
+def test_normalize_path_preserves_non_id_segments():
+    assert _normalize_path("/api/v2/search/results") == "/api/v2/search/results"
+
+
+def test_infer_json_schema_empty_array():
+    result = _infer_json_schema([])
+    assert result["type"] == "array"
+    assert result["items"] == {}
+
+
+def test_infer_json_schema_nested_object():
+    result = _infer_json_schema({"user": {"name": "test", "age": 25}})
+    assert result["type"] == "object"
+    assert result["properties"]["user"]["type"] == "object"
+    assert result["properties"]["user"]["properties"]["name"]["type"] == "string"
+
+
+def test_group_by_endpoint_caches_result():
+    exchanges = [_make_exchange("GET", "https://api.example.com/items")]
+    analyzer = TrafficAnalyzer(exchanges)
+    groups1 = analyzer.group_by_endpoint()
+    groups2 = analyzer.group_by_endpoint()
+    assert groups1 is groups2
+
+
+def test_extract_endpoints_with_path_params():
+    exchanges = [
+        _make_exchange(
+            "GET", "https://api.example.com/users/42",
+            resp_body='{"id": 42, "name": "Alice"}',
+        ),
+    ]
+    analyzer = TrafficAnalyzer(exchanges)
+    endpoints = analyzer.extract_endpoints()
+    assert len(endpoints) == 1
+    assert endpoints[0].path_pattern == "/users/{id}"
+    assert any(p.name == "id" and p.location == "path" for p in endpoints[0].parameters)
+
+
+def test_extract_endpoints_detects_auth_required():
+    exchanges = [
+        _make_exchange(
+            "GET", "https://api.example.com/private",
+            headers={"Authorization": "Bearer token123"},
+            resp_body='{"data": "secret"}',
+        ),
+    ]
+    analyzer = TrafficAnalyzer(exchanges)
+    endpoints = analyzer.extract_endpoints()
+    assert endpoints[0].auth_required is True
+
+
+def test_extract_endpoints_response_schema_inferred():
+    exchanges = [
+        _make_exchange(
+            "GET", "https://api.example.com/stats",
+            resp_body='{"count": 42, "active": true}',
+        ),
+    ]
+    analyzer = TrafficAnalyzer(exchanges)
+    endpoints = analyzer.extract_endpoints()
+    assert endpoints[0].response_schema is not None
+    assert endpoints[0].response_schema["type"] == "object"
+
+
+def test_extract_endpoints_large_response_no_example():
+    large_body = '{"data": "' + "x" * 6000 + '"}'
+    exchanges = [
+        _make_exchange(
+            "GET", "https://api.example.com/big",
+            resp_body=large_body,
+        ),
+    ]
+    analyzer = TrafficAnalyzer(exchanges)
+    endpoints = analyzer.extract_endpoints()
+    assert endpoints[0].example_response is None
+    assert endpoints[0].response_schema is not None
+
+
+def test_detect_auth_basic():
+    exchanges = [
+        _make_exchange(
+            "GET", "https://api.example.com/data",
+            headers={"Authorization": "Basic dXNlcjpwYXNz"},
+        ),
+    ]
+    assert _detect_auth_type(exchanges) == AuthType.API_KEY
+
+
+def test_group_multiple_methods_same_path():
+    exchanges = [
+        _make_exchange("GET", "https://api.example.com/items"),
+        _make_exchange("POST", "https://api.example.com/items"),
+        _make_exchange("DELETE", "https://api.example.com/items/1"),
+    ]
+    analyzer = TrafficAnalyzer(exchanges)
+    groups = analyzer.group_by_endpoint()
+    assert "GET /items" in groups
+    assert "POST /items" in groups
+    assert "DELETE /items/{id}" in groups

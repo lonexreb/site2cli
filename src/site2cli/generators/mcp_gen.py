@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from webcli.models import MCPToolSchema, SiteEntry, Tier
+from site2cli.models import MCPToolSchema, SiteEntry, Tier
 
 
 def _spec_to_mcp_tools(site: SiteEntry, spec: dict) -> list[MCPToolSchema]:
@@ -125,7 +125,7 @@ def generate_mcp_server_code(site: SiteEntry, spec: dict) -> str:
         "from mcp import types",
         "",
         "",
-        f'server = Server("{site.domain}-webcli")',
+        f'server = Server("{site.domain}-site2cli")',
         "",
         f'BASE_URL = "{site.base_url}"',
         "",

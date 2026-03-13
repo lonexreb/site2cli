@@ -6,10 +6,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from webcli.config import get_config
-from webcli.discovery.spec_generator import load_spec, save_spec
-from webcli.models import SiteEntry
-from webcli.registry import SiteRegistry
+from site2cli.config import get_config
+from site2cli.discovery.spec_generator import load_spec, save_spec
+from site2cli.models import SiteEntry
+from site2cli.registry import SiteRegistry
 
 
 class CommunityRegistry:
@@ -46,7 +46,7 @@ class CommunityRegistry:
                 bundle["openapi_spec"] = load_spec(spec_path)
 
         if output_path is None:
-            output_path = self._community_dir / f"{domain}.webcli.json"
+            output_path = self._community_dir / f"{domain}.site2cli.json"
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
@@ -58,7 +58,7 @@ class CommunityRegistry:
         """Import a community-shared site spec.
 
         Args:
-            bundle_path: Path to the .webcli.json bundle.
+            bundle_path: Path to the .site2cli.json bundle.
 
         Returns:
             The imported SiteEntry.
@@ -81,7 +81,7 @@ class CommunityRegistry:
     def list_available(self) -> list[dict]:
         """List available community specs in the local community directory."""
         specs = []
-        for path in self._community_dir.glob("*.webcli.json"):
+        for path in self._community_dir.glob("*.site2cli.json"):
             try:
                 with open(path) as f:
                     bundle = json.load(f)

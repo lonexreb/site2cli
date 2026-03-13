@@ -9,11 +9,11 @@ No browser or API keys required.
 import json
 from pathlib import Path
 
-from webcli.discovery.analyzer import TrafficAnalyzer
-from webcli.discovery.client_generator import generate_client_code, save_client
-from webcli.discovery.spec_generator import generate_openapi_spec, save_spec
-from webcli.generators.mcp_gen import generate_mcp_server_code, save_mcp_server
-from webcli.models import (
+from site2cli.discovery.analyzer import TrafficAnalyzer
+from site2cli.discovery.client_generator import generate_client_code, save_client
+from site2cli.discovery.spec_generator import generate_openapi_spec, save_spec
+from site2cli.generators.mcp_gen import generate_mcp_server_code, save_mcp_server
+from site2cli.models import (
     AuthType,
     CapturedExchange,
     CapturedHeader,
@@ -24,7 +24,7 @@ from webcli.models import (
     SiteEntry,
     Tier,
 )
-from webcli.registry import SiteRegistry
+from site2cli.registry import SiteRegistry
 
 # --- Realistic mock traffic for JSONPlaceholder-like API ---
 
@@ -240,7 +240,7 @@ class TestFullPipeline:
         save_spec(spec, spec_path)
         assert spec_path.exists()
 
-        from webcli.discovery.spec_generator import load_spec
+        from site2cli.discovery.spec_generator import load_spec
 
         loaded = load_spec(spec_path)
         assert loaded["openapi"] == spec["openapi"]
@@ -450,7 +450,7 @@ class TestPipelineEndToEnd:
         assert retrieved.client_module_path is not None
 
         # 7. Verify we can load the spec back
-        from webcli.discovery.spec_generator import load_spec
+        from site2cli.discovery.spec_generator import load_spec
 
         loaded_spec = load_spec(Path(retrieved.openapi_spec_path))
         assert loaded_spec["openapi"] == "3.1.0"

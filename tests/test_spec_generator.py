@@ -1,8 +1,8 @@
 """Tests for OpenAPI spec generation."""
 
 
-from webcli.discovery.spec_generator import generate_openapi_spec, load_spec, save_spec
-from webcli.models import (
+from site2cli.discovery.spec_generator import generate_openapi_spec, load_spec, save_spec
+from site2cli.models import (
     AuthType,
     DiscoveredAPI,
     EndpointInfo,

@@ -3,7 +3,7 @@
 
 import pytest
 
-from webcli.models import (
+from site2cli.models import (
     AuthType,
     EndpointInfo,
     HealthStatus,
@@ -12,7 +12,7 @@ from webcli.models import (
     SiteEntry,
     Tier,
 )
-from webcli.registry import SiteRegistry
+from site2cli.registry import SiteRegistry
 
 
 @pytest.fixture

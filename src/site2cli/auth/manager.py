@@ -6,10 +6,10 @@ import json
 
 import keyring
 
-from webcli.config import get_config
-from webcli.models import AuthType
+from site2cli.config import get_config
+from site2cli.models import AuthType
 
-KEYRING_SERVICE = "webcli"
+KEYRING_SERVICE = "site2cli"
 
 
 class AuthManager:

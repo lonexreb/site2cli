@@ -7,9 +7,9 @@ from pathlib import Path
 
 import httpx
 
-from webcli.auth.manager import AuthManager
-from webcli.config import get_config
-from webcli.models import EndpointInfo, SiteEntry
+from site2cli.auth.manager import AuthManager
+from site2cli.config import get_config
+from site2cli.models import EndpointInfo, SiteEntry
 
 
 class DirectAPIExecutor:

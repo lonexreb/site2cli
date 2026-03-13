@@ -16,11 +16,11 @@ import json
 import httpx
 import pytest
 
-from webcli.discovery.analyzer import TrafficAnalyzer
-from webcli.discovery.client_generator import generate_client_code, save_client
-from webcli.discovery.spec_generator import generate_openapi_spec
-from webcli.generators.mcp_gen import generate_mcp_server_code
-from webcli.models import (
+from site2cli.discovery.analyzer import TrafficAnalyzer
+from site2cli.discovery.client_generator import generate_client_code, save_client
+from site2cli.discovery.spec_generator import generate_openapi_spec
+from site2cli.generators.mcp_gen import generate_mcp_server_code
+from site2cli.models import (
     AuthType,
     CapturedExchange,
     CapturedHeader,

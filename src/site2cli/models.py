@@ -1,4 +1,4 @@
-"""Pydantic models for WebCLI data structures."""
+"""Pydantic models for site2cli data structures."""
 
 from __future__ import annotations
 

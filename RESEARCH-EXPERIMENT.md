@@ -1,6 +1,6 @@
 # Research & Experiment Log
 
-Records of experiments, findings, and learnings during WebCLI development.
+Records of experiments, findings, and learnings during site2cli development.
 
 ---
 
@@ -19,7 +19,7 @@ A 3-tier progressive formalization architecture (Browser → Workflow → API) c
 
 ### Results
 - All 45 tests pass in 0.58s
-- CLI installs and runs (`webcli --help` shows all commands)
+- CLI installs and runs (`site2cli --help` shows all commands)
 - Full pipeline implemented: capture → analyze → spec generate → client generate → register
 
 ### Key Findings
@@ -101,7 +101,7 @@ Generated MCP servers are functional and can be used by Claude to perform real w
 
 ### Plan
 1. Discover a simple API (httpbin.org or JSONPlaceholder)
-2. Generate MCP server with `webcli mcp generate`
+2. Generate MCP server with `site2cli mcp generate`
 3. Configure Claude Code to use the generated MCP server
 4. Ask Claude to perform actions using the generated tools
 

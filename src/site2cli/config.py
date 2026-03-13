@@ -1,4 +1,4 @@
-"""Configuration management for WebCLI."""
+"""Configuration management for site2cli."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 def _default_data_dir() -> Path:
     xdg = os.environ.get("XDG_DATA_HOME")
     if xdg:
-        return Path(xdg) / "webcli"
-    return Path.home() / ".webcli"
+        return Path(xdg) / "site2cli"
+    return Path.home() / ".site2cli"
 
 
 class LLMConfig(BaseModel):
@@ -28,7 +28,7 @@ class LLMConfig(BaseModel):
         if not key:
             raise ValueError(
                 "No API key configured. Set ANTHROPIC_API_KEY"
-                " or use `webcli config set llm.api_key`"
+                " or use `site2cli config set llm.api_key`"
             )
         return key
 
@@ -43,7 +43,7 @@ class BrowserConfig(BaseModel):
 
 
 class Config(BaseModel):
-    """Top-level WebCLI configuration."""
+    """Top-level site2cli configuration."""
 
     data_dir: Path = Field(default_factory=_default_data_dir)
     llm: LLMConfig = Field(default_factory=LLMConfig)

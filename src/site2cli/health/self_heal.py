@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
-from webcli.config import get_config
-from webcli.discovery.analyzer import TrafficAnalyzer
-from webcli.discovery.capture import TrafficCapture
-from webcli.models import EndpointInfo, HealthStatus
-from webcli.registry import SiteRegistry
+from site2cli.config import get_config
+from site2cli.discovery.analyzer import TrafficAnalyzer
+from site2cli.discovery.capture import TrafficCapture
+from site2cli.models import EndpointInfo, HealthStatus
+from site2cli.registry import SiteRegistry
 
 
 class SelfHealer:

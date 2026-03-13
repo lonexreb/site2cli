@@ -6,15 +6,15 @@ Verification test #6 from PLAN.md:
 
 import pytest
 
-from webcli.models import (
+from site2cli.models import (
     EndpointInfo,
     ParameterInfo,
     SiteAction,
     SiteEntry,
     Tier,
 )
-from webcli.registry import SiteRegistry
-from webcli.router import Router, _find_action, _tier_fallback_order
+from site2cli.registry import SiteRegistry
+from site2cli.router import Router, _find_action, _tier_fallback_order
 
 
 class TestTierFallbackOrder:

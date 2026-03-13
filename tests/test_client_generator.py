@@ -1,6 +1,6 @@
 """Tests for Python client code generation."""
 
-from webcli.discovery.client_generator import (
+from site2cli.discovery.client_generator import (
     _sanitize_name,
     _schema_to_type_hint,
     generate_client_code,

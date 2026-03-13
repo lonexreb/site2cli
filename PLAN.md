@@ -1,6 +1,6 @@
 # Plan to implement
 
-# WebCLI: Turn Any Website Into a CLI/API for AI Agents
+# site2cli: Turn Any Website Into a CLI/API for AI Agents
 
 ## Context
 
@@ -71,7 +71,7 @@
 
 ---
 
-## Product Architecture: "WebCLI"
+## Product Architecture: site2cli
 
 ### Core Concept: Progressive Formalization
 
@@ -90,7 +90,7 @@ Tier 1: Browser-Use Exploration (slowest, universal)
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    WebCLI Core                       │
+│                    site2cli Core                       │
 ├──────────┬──────────────┬──────────────┬────────────┤
 │  CLI     │  MCP Server  │  Python SDK  │  REST API  │
 │  Layer   │  Layer       │  Layer       │  Layer     │
@@ -131,10 +131,10 @@ Tier 1: Browser-Use Exploration (slowest, universal)
 - Dynamic command generation from site registry
 - Example usage:
   ```bash
-  webcli discover kayak.com          # Explore site, discover capabilities
-  webcli kayak search-flights --from SFO --to JFK --date 2026-04-01
-  webcli amazon search "headphones" --max-price 100
-  webcli chase get-balance --account checking
+  site2cli discover kayak.com          # Explore site, discover capabilities
+  site2cli kayak search-flights --from SFO --to JFK --date 2026-04-01
+  site2cli amazon search "headphones" --max-price 100
+  site2cli chase get-balance --account checking
   ```
 
 #### 2. MCP Server Layer
@@ -206,9 +206,9 @@ Tier 1: Browser-Use Exploration (slowest, universal)
 **First time (Tier 1 → discovers API → graduates to Tier 3):**
 ```bash
 # 1. User initiates discovery
-$ webcli discover kayak.com --action "search flights"
+$ site2cli discover kayak.com --action "search flights"
 
-# WebCLI launches Playwright, navigates kayak.com
+# site2cli launches Playwright, navigates kayak.com
 # LLM fills in the search form with test data
 # CDP captures: POST /api/search/flights {origin, dest, dates, ...}
 # Captures response schema: {results: [{price, airline, ...}]}
@@ -220,7 +220,7 @@ $ webcli discover kayak.com --action "search flights"
   - get_price_history (route, date_range)
 
 # 2. Now the agent (or user) can use it directly
-$ webcli kayak search-flights --from SFO --to JFK --date 2026-04-01
+$ site2cli kayak search-flights --from SFO --to JFK --date 2026-04-01
 
 # This now uses the discovered API directly (Tier 3)
 # No browser needed, returns structured JSON in ~200ms
@@ -242,27 +242,27 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 
 **Files created:**
 - `pyproject.toml` — Project setup with deps
-- `src/webcli/__init__.py`
-- `src/webcli/cli.py` — Typer CLI entry point
-- `src/webcli/config.py` — Configuration management
-- `src/webcli/registry.py` — Site registry (SQLite)
-- `src/webcli/models.py` — Pydantic models for specs, sites, actions
+- `src/site2cli/__init__.py`
+- `src/site2cli/cli.py` — Typer CLI entry point
+- `src/site2cli/config.py` — Configuration management
+- `src/site2cli/registry.py` — Site registry (SQLite)
+- `src/site2cli/models.py` — Pydantic models for specs, sites, actions
 
 **What it does:**
-- Basic CLI skeleton (`webcli --help`)
+- Basic CLI skeleton (`site2cli --help`)
 - Site registry CRUD
 - Config management (API keys, storage paths)
 
 ### Phase 2: Traffic Capture & API Discovery (Week 3-4) ✅ COMPLETE
 
 **Files created:**
-- `src/webcli/discovery/capture.py` — CDP-based network traffic capture
-- `src/webcli/discovery/analyzer.py` — LLM-assisted pattern analysis
-- `src/webcli/discovery/spec_generator.py` — OpenAPI spec generation
-- `src/webcli/discovery/client_generator.py` — Python client from spec
+- `src/site2cli/discovery/capture.py` — CDP-based network traffic capture
+- `src/site2cli/discovery/analyzer.py` — LLM-assisted pattern analysis
+- `src/site2cli/discovery/spec_generator.py` — OpenAPI spec generation
+- `src/site2cli/discovery/client_generator.py` — Python client from spec
 
 **What it does:**
-- `webcli discover <url>` launches browser, captures traffic
+- `site2cli discover <url>` launches browser, captures traffic
 - Groups requests into endpoint patterns
 - Generates OpenAPI spec from captured traffic
 - Generates Python client code
@@ -270,9 +270,9 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 ### Phase 3: CLI & MCP Generation (Week 5-6) ✅ COMPLETE
 
 **Files created:**
-- `src/webcli/generators/cli_gen.py` — Dynamic CLI command generation from specs
-- `src/webcli/generators/mcp_gen.py` — MCP server generation from specs
-- `src/webcli/auth/manager.py` — Auth flow management
+- `src/site2cli/generators/cli_gen.py` — Dynamic CLI command generation from specs
+- `src/site2cli/generators/mcp_gen.py` — MCP server generation from specs
+- `src/site2cli/auth/manager.py` — Auth flow management
 
 **What it does:**
 - Auto-generates CLI commands from discovered APIs
@@ -282,10 +282,10 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 ### Phase 4: Progressive Formalization (Week 7-8) ✅ COMPLETE
 
 **Files created:**
-- `src/webcli/tiers/browser_explorer.py` — Tier 1: LLM-driven browser
-- `src/webcli/tiers/cached_workflow.py` — Tier 2: Recorded workflows
-- `src/webcli/tiers/direct_api.py` — Tier 3: Direct API calls
-- `src/webcli/router.py` — Tier router (picks best available method)
+- `src/site2cli/tiers/browser_explorer.py` — Tier 1: LLM-driven browser
+- `src/site2cli/tiers/cached_workflow.py` — Tier 2: Recorded workflows
+- `src/site2cli/tiers/direct_api.py` — Tier 3: Direct API calls
+- `src/site2cli/router.py` — Tier router (picks best available method)
 
 **What it does:**
 - Tier 1: Falls back to browser-use for unknown sites
@@ -297,9 +297,9 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 ### Phase 5: Community & Polish (Week 9-10) ✅ COMPLETE
 
 **Files created:**
-- `src/webcli/community/registry.py` — Community spec sharing
-- `src/webcli/health/monitor.py` — API health checking
-- `src/webcli/health/self_heal.py` — LLM-powered breakage detection + repair
+- `src/site2cli/community/registry.py` — Community spec sharing
+- `src/site2cli/health/monitor.py` — API health checking
+- `src/site2cli/health/self_heal.py` — LLM-powered breakage detection + repair
 
 **What it does:**
 - Share/import community-contributed site specs (like yt-dlp extractors)
@@ -317,7 +317,7 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 5. **CLI test**: CLI commands tested via Typer CliRunner — ✅ 5 tests passing (`test_cli.py`)
 6. **Tier promotion test**: Tier fallback order, action finding, auto-promotion after 5 successes, no promotion with failures — ✅ 9 tests passing (`test_tier_promotion.py`)
 
-**Total: 71 tests, all passing** (65 unit/integration + 6 live)
+**Total: 156 tests, all passing** (150 unit/integration + 6 live)
 
 ### Bugs Found & Fixed by Integration Tests
 - `models.py`: `example_response` typed as `dict | None` but API responses can be arrays — fixed to `dict | list | None`

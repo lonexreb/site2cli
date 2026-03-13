@@ -6,8 +6,8 @@ import asyncio
 import time
 from urllib.parse import urlparse
 
-from webcli.config import get_config
-from webcli.models import (
+from site2cli.config import get_config
+from site2cli.models import (
     CapturedExchange,
     CapturedHeader,
     CapturedRequest,
@@ -64,7 +64,7 @@ class TrafficCapture:
         except ImportError:
             raise ImportError(
                 "Playwright is required for browser capture. "
-                "Install it with: pip install webcli[browser]"
+                "Install it with: pip install site2cli[browser]"
             )
 
     async def capture_page_traffic(
