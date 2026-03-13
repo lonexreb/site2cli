@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/web2cli
+      url: https://pypi.org/p/site2cli
     steps:
       - uses: actions/checkout@v4
 
