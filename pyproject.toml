@@ -50,10 +50,10 @@ cookies = [
     "browser-cookie3>=0.19.0",
 ]
 all = [
-    "webcli[browser,llm,mcp]",
+    "site2cli[browser,llm,mcp]",
 ]
 dev = [
-    "webcli[all]",
+    "site2cli[all]",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.5.0",
