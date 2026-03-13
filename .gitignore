@@ -14,3 +14,4 @@ venv/
 .pytest_cache/
 *.db
 *.sqlite3
+PyPI-Recovery-Codes-*.txt
