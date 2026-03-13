@@ -72,6 +72,13 @@ pytest -v                 # Verbose output
 
 **Total: 156 tests (150 + 6 live), all passing.**
 
+## Backward Compatibility (webcli → site2cli)
+
+The project was renamed from `webcli` to `site2cli`. These migration paths exist:
+- **Data dir**: `config.py` auto-migrates `~/.webcli/` → `~/.site2cli/` on first run
+- **Keyring**: `auth/manager.py` falls back to old `"webcli"` keyring service when credentials aren't found under `"site2cli"`
+- **Community bundles**: `community/registry.py` accepts both `.site2cli.json` and `.webcli.json` bundle formats
+
 ## Optional Dependencies
 
 Heavy deps are optional to keep base install lightweight:

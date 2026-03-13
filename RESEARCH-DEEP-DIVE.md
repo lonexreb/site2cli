@@ -50,7 +50,7 @@ An **always-on local AI agent** running on a dedicated Mac mini:
 | Website interaction | Via sub-agents (opaque) | Formalized into deterministic CLIs |
 | Local access | Personal Computer (Mac mini) | Runs on any machine |
 
-**Strategic takeaway**: Perplexity is going "consumer AI OS" — WebCLI is going "developer power tool." These are complementary, not competitive. WebCLI could even be a tool *inside* a system like Perplexity Computer.
+**Strategic takeaway**: Perplexity is going "consumer AI OS" — site2cli is going "developer power tool." These are complementary, not competitive. site2cli could even be a tool *inside* a system like Perplexity Computer.
 
 ---
 
@@ -75,7 +75,7 @@ An **always-on local AI agent** running on a dedicated Mac mini:
 
 ### Major New Entrant: Vercel agent-browser
 
-**This is the closest thing to WebCLI that now exists.**
+**This is the closest thing to site2cli that now exists.**
 
 - **What**: CLI-first browser automation for AI agents (Rust + Node.js)
 - **How**: AI agents control browser via shell commands (`agent-browser snapshot`, `agent-browser click @e1`)
@@ -83,7 +83,7 @@ An **always-on local AI agent** running on a dedicated Mac mini:
 - **Performance**: 93% less context usage than Playwright MCP; 5.7x more test cycles per context budget
 - **Works with**: Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, Goose, OpenCode, Windsurf
 
-**How it differs from WebCLI:**
+**How it differs from site2cli:**
 | | agent-browser | site2cli |
 |---|---|---|
 | Goal | Better browser automation | Eliminate browser automation |
@@ -92,7 +92,7 @@ An **always-on local AI agent** running on a dedicated Mac mini:
 | Progressive formalization | No | Yes (Browser → Workflow → API) |
 | End state | Still using a browser | Direct API calls, no browser needed |
 
-**Insight**: agent-browser makes browser automation *better for agents*. WebCLI makes browser automation *unnecessary* by graduating to direct API calls. They're solving different layers of the same problem.
+**Insight**: agent-browser makes browser automation *better for agents*. site2cli makes browser automation *unnecessary* by graduating to direct API calls. They're solving different layers of the same problem.
 
 ### Consumer AI Browsers (New Category)
 
@@ -129,17 +129,17 @@ Websites declare their capabilities as structured tools via the `navigator.model
 1. **Declarative API**: Standard actions defined in HTML forms — browser auto-exposes them as tools
 2. **Imperative API**: Complex interactions requiring JavaScript — websites register tools programmatically
 
-### Why This Matters for WebCLI
+### Why This Matters for site2cli
 
 **WebMCP is both a threat and an opportunity:**
 
-**Threat**: If websites adopt WebMCP, they'll natively expose structured tools for agents. WebCLI's "discover APIs from traffic" approach becomes less necessary for WebMCP-enabled sites.
+**Threat**: If websites adopt WebMCP, they'll natively expose structured tools for agents. site2cli's "discover APIs from traffic" approach becomes less necessary for WebMCP-enabled sites.
 
 **Opportunity**:
 - WebMCP adoption will be slow (years for broad adoption)
 - The long tail of websites will never implement it
-- WebCLI can **consume** WebMCP declarations as another discovery source
-- WebCLI can act as a **bridge** for sites that don't have WebMCP yet
+- site2cli can **consume** WebMCP declarations as another discovery source
+- site2cli can act as a **bridge** for sites that don't have WebMCP yet
 
 **Performance**: WebMCP achieves **89% token efficiency improvement** over screenshot-based methods.
 
@@ -161,7 +161,7 @@ A significant debate is happening in the developer community:
 
 **"MCP is dead. Long live the CLI"** hit top of Hacker News (85 points, 66 comments). Thesis: MCP shines for interactive use, but for automated pipelines, CLI + direct API wins.
 
-**Implication for WebCLI**: This validates the CLI-first approach. WebCLI should generate CLIs that are directly usable by AI agents *without MCP* — just shell commands. MCP is an additional output format, not the primary one.
+**Implication for site2cli**: This validates the CLI-first approach. site2cli should generate CLIs that are directly usable by AI agents *without MCP* — just shell commands. MCP is an additional output format, not the primary one.
 
 ---
 
@@ -179,7 +179,7 @@ Multiple tools now convert OpenAPI specs to MCP servers:
 
 **Important caveat**: "LLMs achieve significantly better performance with well-designed and curated MCP servers than with auto-converted OpenAPI servers."
 
-**Implication**: WebCLI's pipeline (website → traffic → OpenAPI → MCP) is validated — the OpenAPI→MCP leg is solved. WebCLI's value is in the **website → OpenAPI** leg.
+**Implication**: site2cli's pipeline (website → traffic → OpenAPI → MCP) is validated — the OpenAPI→MCP leg is solved. site2cli's value is in the **website → OpenAPI** leg.
 
 ---
 
@@ -189,23 +189,23 @@ Based on research into how comparable tools distribute:
 
 ### Immediate (Do Now)
 
-1. **Register `webcli` on PyPI** — name squatting risk is real
-2. **`pip install webcli` / `pipx install webcli` / `uv tool install webcli`**
-3. **Add `webcli setup` command** — installs Playwright browsers, validates keyring, creates dirs
-4. **Make browser deps optional**: `pip install webcli[browser]` for full suite, base package for Tier 3 only
+1. **Register `site2cli` on PyPI** — name squatting risk is real
+2. **`pip install site2cli` / `pipx install site2cli` / `uv tool install site2cli`**
+3. **Add `site2cli setup` command** — installs Playwright browsers, validates keyring, creates dirs
+4. **Make browser deps optional**: `pip install site2cli[browser]` for full suite, base package for Tier 3 only
 
 ### Recommended pyproject.toml changes:
 ```toml
 [project.optional-dependencies]
 browser = ["playwright>=1.40.0", "browser-cookie3>=0.19.0"]
 cookies = ["browser-cookie3>=0.19.0"]
-all = ["webcli[browser,cookies]"]
+all = ["site2cli[browser,cookies]"]
 ```
 
 ### Short-term (100+ users)
-5. **Homebrew tap**: `brew tap lonexreb/webcli && brew install webcli`
+5. **Homebrew tap**: `brew tap lonexreb/site2cli && brew install site2cli`
 6. **Docker image**: For CI and MCP server hosting
-7. **MCP invocation via uvx**: `uvx webcli mcp-serve` (how Claude Desktop expects it)
+7. **MCP invocation via uvx**: `uvx site2cli mcp-serve` (how Claude Desktop expects it)
 
 ### Medium-term (1000+ users)
 8. **Homebrew core** formula
@@ -226,12 +226,12 @@ all = ["webcli[browser,cookies]"]
                     (fast, reliable)            (slow, any site)
 
   DEVELOPER    ┌─────────────────────────────────────────┐
-  (CLI/API)    │  gh, aws CLI     WebCLI (Tier 3)        │
+  (CLI/API)    │  gh, aws CLI     site2cli (Tier 3)        │
                │  Stainless MCP    ↑                     │
                │  FastMCP          │ progressive          │
                │                   │ formalization        │
                │  OpenAPI-to-MCP   ↓                     │
-               │  generators      WebCLI (Tier 1)        │
+               │  generators      site2cli (Tier 1)        │
                │                   agent-browser (Vercel) │
                │                   browser-use            │
                └─────────────────────────────────────────┘
@@ -245,7 +245,7 @@ all = ["webcli[browser,cookies]"]
                └─────────────────────────────────────────┘
 ```
 
-**WebCLI's unique position**: The only tool that starts universal (any website via browser) and progressively moves toward structured (deterministic API calls). Everything else is either one or the other.
+**site2cli's unique position**: The only tool that starts universal (any website via browser) and progressively moves toward structured (deterministic API calls). Everything else is either one or the other.
 
 ---
 
@@ -256,12 +256,12 @@ all = ["webcli[browser,cookies]"]
 1. **Browser agents got much better** (89% on benchmarks vs 15-35% a year ago) — but still not reliable enough for production
 2. **WebMCP is coming** — Google/Microsoft W3C standard for websites to declare capabilities. Long-term threat, short-term irrelevant (adoption will take years)
 3. **Vercel agent-browser exists** — CLI-first browser control, but doesn't do formalization
-4. **"CLI is the new API" thesis gaining traction** — validates WebCLI's approach
-5. **OpenAPI → MCP is solved** — FastMCP, Stainless do this well. WebCLI's value is website → OpenAPI
+4. **"CLI is the new API" thesis gaining traction** — validates site2cli's approach
+5. **OpenAPI → MCP is solved** — FastMCP, Stainless do this well. site2cli's value is website → OpenAPI
 6. **Perplexity going consumer/enterprise** — leaves developer power-tool niche wide open
 7. **MCP ecosystem is massive** (10,000+ servers, Linux Foundation) — but auto-generation from arbitrary websites is still unsolved
 
-### WebCLI's moat
+### site2cli's moat
 
 1. **Progressive formalization** — nobody else does Browser → Workflow → API graduation
 2. **Website → OpenAPI** pipeline — the unsolved link in the chain
@@ -280,7 +280,7 @@ all = ["webcli[browser,cookies]"]
 1. **Long tail of websites** — most will never implement WebMCP or ship MCP servers
 2. **Enterprise compliance** — deterministic, auditable CLI calls vs black-box agents
 3. **MCP distribution channel** — publish community-generated MCP servers
-4. **WebMCP bridge** — WebCLI can consume WebMCP + fallback to traffic capture
+4. **WebMCP bridge** — site2cli can consume WebMCP + fallback to traffic capture
 
 ---
 

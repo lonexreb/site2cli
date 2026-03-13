@@ -10,6 +10,7 @@ from site2cli.config import get_config
 from site2cli.models import AuthType
 
 KEYRING_SERVICE = "site2cli"
+_OLD_KEYRING_SERVICE = "webcli"
 
 
 class AuthManager:
@@ -26,7 +27,10 @@ class AuthManager:
 
     def get_api_key(self, domain: str) -> str | None:
         """Retrieve a stored API key."""
-        return keyring.get_password(KEYRING_SERVICE, f"{domain}:api_key")
+        key = keyring.get_password(KEYRING_SERVICE, f"{domain}:api_key")
+        if key is None:
+            key = keyring.get_password(_OLD_KEYRING_SERVICE, f"{domain}:api_key")
+        return key
 
     def store_cookies(self, domain: str, cookies: dict[str, str]) -> None:
         """Store cookies for a domain."""
@@ -48,7 +52,12 @@ class AuthManager:
 
     def get_token(self, domain: str, token_type: str = "bearer") -> str | None:
         """Retrieve a stored token."""
-        return keyring.get_password(KEYRING_SERVICE, f"{domain}:token:{token_type}")
+        token = keyring.get_password(KEYRING_SERVICE, f"{domain}:token:{token_type}")
+        if token is None:
+            token = keyring.get_password(
+                _OLD_KEYRING_SERVICE, f"{domain}:token:{token_type}"
+            )
+        return token
 
     def get_auth_headers(self, domain: str, auth_type: AuthType) -> dict[str, str]:
         """Get authentication headers for a domain based on auth type."""

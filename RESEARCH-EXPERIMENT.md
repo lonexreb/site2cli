@@ -162,6 +162,39 @@ The self-healing system can detect and repair endpoint changes (path renames, pa
 
 ---
 
+## Experiment #7: Full Rename (webcli → site2cli) + Test Expansion + README Overhaul
+
+**Date**: 2026-03-13
+**Status**: Complete
+
+### Hypothesis
+A comprehensive rename, test expansion (71 → 156), and README overhaul will bring the project to a publishable, professional state matching competitors like CLI-Anything.
+
+### Changes Made
+
+**Rename (webcli → site2cli):**
+- Renamed `src/webcli/` → `src/site2cli/`, updated all imports and string references across 25 source files and 15 test files
+- Updated `pyproject.toml` entry points, build paths, and GitHub URLs
+- Added backward compatibility: data dir auto-migration (`~/.webcli/` → `~/.site2cli/`), keyring service fallback, community bundle format compat (`.webcli.json` still accepted)
+- Renamed GitHub repo via `gh repo rename site2cli`
+
+**Test Expansion (71 → 156 tests):**
+- Created 6 new test files: `test_config.py` (8), `test_auth.py` (11), `test_health.py` (8), `test_router.py` (15), `test_community.py` (6), `test_generated_code.py` (8)
+- Expanded 3 existing files: `test_analyzer.py` (+12), `test_cli.py` (+12), `test_models.py` (+7)
+- Total: 150 unit/integration + 6 live = 156 tests
+
+**README Overhaul:**
+- Banner image, shields.io badges (CI, PyPI, Python, License, Tests)
+- Problem comparison table, 3 Mermaid diagrams, feature comparison vs competitors
+- Full testing table with per-file breakdown
+
+### Key Findings
+1. **Backward compat matters** — keyring entries and data dirs from old installs would silently break without fallback reads
+2. **Community bundle format** needs both old and new extensions accepted for smooth migration
+3. **Test count** went from 71 → 156 with good coverage of previously untested modules (config, auth, health, router, community, generated code)
+
+---
+
 ## Learnings & Mistakes
 
 ### L1: pytest-asyncio version compatibility (2026-03-11)

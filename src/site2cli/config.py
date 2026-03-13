@@ -12,7 +12,12 @@ def _default_data_dir() -> Path:
     xdg = os.environ.get("XDG_DATA_HOME")
     if xdg:
         return Path(xdg) / "site2cli"
-    return Path.home() / ".site2cli"
+    new_dir = Path.home() / ".site2cli"
+    # Fallback: migrate from old ~/.webcli if it exists
+    old_dir = Path.home() / ".webcli"
+    if not new_dir.exists() and old_dir.exists():
+        old_dir.rename(new_dir)
+    return new_dir
 
 
 class LLMConfig(BaseModel):

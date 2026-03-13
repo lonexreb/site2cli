@@ -81,7 +81,10 @@ class CommunityRegistry:
     def list_available(self) -> list[dict]:
         """List available community specs in the local community directory."""
         specs = []
-        for path in self._community_dir.glob("*.site2cli.json"):
+        # Accept both new .site2cli.json and old .webcli.json bundles
+        bundle_paths = list(self._community_dir.glob("*.site2cli.json"))
+        bundle_paths += list(self._community_dir.glob("*.webcli.json"))
+        for path in bundle_paths:
             try:
                 with open(path) as f:
                     bundle = json.load(f)
