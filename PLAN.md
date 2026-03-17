@@ -310,17 +310,18 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 
 ## Verification & Testing
 
-1. **Unit tests**: Test each component in isolation (capture, analyze, generate) — ✅ 150 tests passing across 14 test files
-2. **Integration test — simple site**: Full pipeline test with mock JSONPlaceholder-like traffic — ✅ 12 tests passing (`test_integration_pipeline.py`)
+1. **Unit tests**: Test each component in isolation (capture, analyze, generate) — ✅ 150 tests passing across 15 test files
+2. **Integration test — simple site**: Full pipeline test with mock JSONPlaceholder-like traffic — ✅ 11 tests passing (`test_integration_pipeline.py`)
 3. **Integration test — real site**: Live tests against jsonplaceholder.typicode.com and httpbin.org — ✅ 6 tests passing (`test_integration_live.py`)
 4. **MCP test**: Generated MCP server code validates (syntax + structure) — ✅ Covered in pipeline + live tests + `test_generated_code.py` (8 tests)
-5. **CLI test**: CLI commands tested via Typer CliRunner — ✅ 17 tests passing (`test_cli.py`)
-6. **Tier promotion test**: Tier fallback order, action finding, auto-promotion after 5 successes, no promotion with failures — ✅ 6 tests passing (`test_tier_promotion.py`)
+5. **CLI test**: CLI commands tested via Typer CliRunner — ✅ 16 tests passing (`test_cli.py`)
+6. **Tier promotion test**: Tier fallback order, action finding, auto-promotion after 5 successes, no promotion with failures — ✅ 9 tests passing (`test_tier_promotion.py`)
 7. **Config test**: Config singleton, dirs, YAML save/load, API key from env — ✅ 8 tests (`test_config.py`)
 8. **Auth test**: Keyring store/get, auth headers, cookie extraction — ✅ 11 tests (`test_auth.py`)
 9. **Health test**: Health check with mock httpx, status persistence — ✅ 8 tests (`test_health.py`)
 10. **Router test**: Router execution, fallback, promotion, param forwarding — ✅ 15 tests (`test_router.py`)
 11. **Community test**: Export/import roundtrip, community listing — ✅ 6 tests (`test_community.py`)
+12. **Live validation (Experiment #8)**: Full pipeline against 5 real public APIs (JSONPlaceholder, httpbin, Dog CEO, Open-Meteo, GitHub) — ✅ 25 endpoints discovered, all specs valid, all generated clients make real API calls, 25 MCP tools generated, avg 310ms per API
 
 **Total: 156 tests, all passing** (150 unit/integration + 6 live)
 

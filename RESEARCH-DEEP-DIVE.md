@@ -284,6 +284,43 @@ all = ["site2cli[browser,cookies]"]
 
 ---
 
+## 9. CLI-Anything Analysis (HKUDS)
+
+**GitHub**: github.com/HKUDS/CLI-Anything — 11.7k stars, MIT license
+
+### What It Does
+
+CLI-Anything uses an LLM-driven 7-phase pipeline to analyze **source code** of desktop/professional software and auto-generate Click-based Python CLIs that AI agents can control. It targets local applications (GIMP, Blender, Audacity, LibreOffice, OBS, etc.) — 11 software integrations validated with 1,508 passing tests.
+
+**Pipeline**: Analyze source code → Design command groups → Implement Click CLI → Plan tests → Write tests → Document → Publish (pip install to PATH).
+
+### Head-to-Head Comparison
+
+| Dimension | CLI-Anything | site2cli |
+|---|---|---|
+| **Target** | Desktop software (source code) | Web applications (HTTP traffic) |
+| **Discovery** | Static analysis of source | Dynamic traffic capture (CDP) |
+| **Source code required?** | Yes (open-source) | No (black-box) |
+| **Output format** | Click CLI + JSON | OpenAPI spec + Typer CLI + MCP server |
+| **Progressive?** | No (generate once, refine manually) | Yes (auto-promotes Browser → Workflow → API) |
+| **Auth handling** | App-specific (OAuth2 etc.) | Generic (browser cookies, keyring) |
+| **Agent interface** | JSON stdout + plugin registration | MCP server (standard protocol) |
+| **Test suite** | 1,508 tests | 156 tests |
+| **Overlap** | None — different target domains | None — different target domains |
+
+### Key Takeaway
+
+**Complementary, not competing.** CLI-Anything wraps local desktop software by reading source code. site2cli wraps web applications by observing network traffic. A user wanting full AI-agent coverage could use both: CLI-Anything for desktop apps, site2cli for web services.
+
+### What We Can Learn From CLI-Anything
+
+1. **Test density**: 1,508 tests across 11 integrations (~137 tests/integration) sets a high bar for credibility
+2. **Professional README**: Badges, comparison tables, architecture diagrams, demo GIFs — polished presentation matters for adoption
+3. **Plugin ecosystem**: Claude Code / OpenCode / Codex integrations — meeting agents where they already are
+4. **JSON-first output**: Structured output for agent consumption is table stakes
+
+---
+
 ## Sources
 
 - [Introducing Perplexity Computer](https://www.perplexity.ai/hub/blog/introducing-perplexity-computer)

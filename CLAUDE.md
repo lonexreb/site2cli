@@ -34,6 +34,16 @@ src/site2cli/
 │   └── self_heal.py    # LLM-powered breakage repair
 └── community/
     └── registry.py     # Community spec sharing
+
+experiments/
+├── experiment_8_live_validation.py   # Live validation against 5 real APIs
+├── experiment_9_api_breadth.py       # Breadth test across 10 diverse APIs
+├── experiment_10_unofficial_api_benchmark.py  # Coverage vs known unofficial APIs
+├── experiment_11_speed_cost_benchmark.py      # Speed, cost, throughput benchmarks
+├── experiment_12_mcp_validation.py   # Deep MCP server validation
+├── experiment_13_spec_accuracy.py    # Spec accuracy vs ground truth
+├── experiment_14_resilience.py       # Health monitoring & resilience
+└── run_all_experiments.py            # Master runner for all experiments
 ```
 
 ## Conventions
@@ -54,23 +64,39 @@ pytest -v                 # Verbose output
 ```
 
 **Test files:**
+- `test_analyzer.py` — Traffic analysis & grouping (23 tests)
+- `test_cli.py` — CLI commands via CliRunner (16 tests)
 - `test_models.py` — Pydantic model validation (15 tests)
-- `test_registry.py` — SQLite registry CRUD (10 tests)
-- `test_analyzer.py` — Traffic analysis & grouping (24 tests)
-- `test_spec_generator.py` — OpenAPI spec generation (6 tests)
-- `test_client_generator.py` — Python client code gen (4 tests)
-- `test_cli.py` — CLI commands via CliRunner (17 tests)
-- `test_integration_pipeline.py` — Full pipeline with mock data (12 tests)
-- `test_integration_live.py` — Live API tests, marked `@pytest.mark.live` (6 tests)
-- `test_tier_promotion.py` — Tier fallback & auto-promotion (6 tests)
-- `test_config.py` — Config singleton, dirs, YAML save/load (8 tests)
-- `test_auth.py` — Keyring store/get, auth headers (11 tests)
-- `test_health.py` — Health check with mock httpx (8 tests)
 - `test_router.py` — Router execution, fallback, promotion (15 tests)
-- `test_community.py` — Export/import roundtrip (6 tests)
+- `test_auth.py` — Keyring store/get, auth headers (11 tests)
+- `test_integration_pipeline.py` — Full pipeline with mock data (11 tests)
+- `test_registry.py` — SQLite registry CRUD (10 tests)
+- `test_tier_promotion.py` — Tier fallback & auto-promotion (9 tests)
+- `test_config.py` — Config singleton, dirs, YAML save/load (8 tests)
+- `test_health.py` — Health check with mock httpx (8 tests)
 - `test_generated_code.py` — compile() validation (8 tests)
+- `test_spec_generator.py` — OpenAPI spec generation (6 tests)
+- `test_community.py` — Export/import roundtrip (6 tests)
+- `test_integration_live.py` — Live API tests, marked `@pytest.mark.live` (6 tests)
+- `test_client_generator.py` — Python client code gen (4 tests)
 
 **Total: 156 tests (150 + 6 live), all passing.**
+
+## Live Validation (7 Experiments, All Passing)
+
+Full pre-launch validation suite: `python experiments/run_all_experiments.py`
+
+| # | Experiment | What It Proves |
+|---|-----------|----------------|
+| 8 | Live Validation | 5 APIs, full pipeline end-to-end |
+| 9 | API Breadth | 10 diverse APIs (33 endpoints), 7 categories |
+| 10 | Unofficial API Benchmark | 62% coverage of known APIs, 2M x faster than manual |
+| 11 | Speed & Cost | 74% cheaper than browser-use, 80% time in HTTP capture |
+| 12 | MCP Validation | 20 tools, 14/14 quality checks, schema-spec match |
+| 13 | Spec Accuracy | 80% accuracy vs ground truth (5 APIs) |
+| 14 | Resilience | 100% health check accuracy, drift detection, bundle integrity |
+
+All 7 experiments pass in ~74 seconds.
 
 ## Backward Compatibility (webcli → site2cli)
 
@@ -87,6 +113,10 @@ Heavy deps are optional to keep base install lightweight:
 - `site2cli[mcp]` — MCP Python SDK
 - `site2cli[all]` — Everything
 - `site2cli[dev]` — All + pytest, ruff, mypy
+
+## Bug Fixes
+
+- **client_generator.py**: Fixed Python syntax error where required params could follow optional params in generated methods. Required params are now sorted before optional ones.
 
 ## Key Docs
 

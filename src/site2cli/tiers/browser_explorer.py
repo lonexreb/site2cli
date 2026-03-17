@@ -62,7 +62,12 @@ class BrowserExplorer:
                 viewport={"width": 1920, "height": 1080},
             )
             page = await context.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=config.browser.timeout_ms)
+            try:
+                await page.goto(url, wait_until="networkidle", timeout=config.browser.timeout_ms)
+            except Exception:
+                await page.goto(
+                    url, wait_until="domcontentloaded", timeout=config.browser.timeout_ms
+                )
 
             result = await self._llm_driven_interaction(
                 page, action, params
@@ -90,13 +95,20 @@ class BrowserExplorer:
         except (ImportError, ValueError) as e:
             return {"error": str(e), "message": "LLM not available for browser exploration"}
 
-        max_steps = 10
+        max_steps = 25
         history: list[dict] = []
         result_data: dict = {}
 
         for step in range(max_steps):
             # Get page state
-            page_title = await page.title()
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=5000)
+            except Exception:
+                pass
+            try:
+                page_title = await page.title()
+            except Exception:
+                page_title = "(loading)"
             page_url = page.url
 
             # Get visible text content (simplified DOM)
@@ -108,8 +120,11 @@ class BrowserExplorer:
                 );
                 const items = [];
                 for (const el of elements) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width === 0 && rect.height === 0) continue;
                     const tag = el.tagName.toLowerCase();
-                    const text = el.textContent?.trim().slice(0, 100) || '';
+                    const text = el.textContent?.trim().slice(0, 200) || '';
+                    if (!text && !el.href && !el.name && !el.placeholder) continue;
                     const attrs = {};
                     if (el.id) attrs.id = el.id;
                     if (el.name) attrs.name = el.name;
@@ -117,13 +132,15 @@ class BrowserExplorer:
                     if (el.placeholder) attrs.placeholder = el.placeholder;
                     if (el.href) attrs.href = el.href;
                     if (el.value) attrs.value = el.value.slice(0, 50);
+                    if (el.download !== undefined && el.download !== '')
+                        attrs.download = el.download;
                     const selector = el.id ? '#' + el.id
                         : el.name ? `${tag}[name="${el.name}"]`
                         : el.className ? `${tag}.${el.className.split(' ')[0]}`
                         : tag;
                     items.push({tag, text, attrs, selector});
                 }
-                return items.slice(0, 50);
+                return items.slice(0, 100);
             }""")
 
             # Ask LLM what to do
@@ -143,8 +160,11 @@ Previous actions taken:
 {json.dumps(history, indent=2)}
 
 What should I do next? Respond with a JSON object:
-- If an action is needed: {{"action": "click|fill|select|navigate|scroll|wait", \
-"selector": "CSS selector", "value": "value if filling", "reason": "why"}}
+- If an action is needed: {{"action": "click|fill|select|navigate|scroll|wait|press|download", \
+"selector": "CSS selector", "value": "value if filling/pressing key/download URL", "reason": "why"}}
+- Use "press" with value like "Enter", "Tab", "Escape" for keyboard actions
+- Use "download" with value as the file URL to download a file
+- Use "scroll" with value as pixels to scroll (default 500)
 - If the goal is achieved: {{"action": "done", \
 "result": {{"extracted data here"}}, "reason": "why"}}
 - If the goal can't be achieved: {{"action": "fail", \
@@ -205,8 +225,42 @@ Respond with ONLY the JSON object."""
                         await page.goto(url, wait_until="networkidle", timeout=10000)
                     except Exception as e:
                         history.append({"step": step, "error": str(e)})
+            elif action == "press":
+                key = instruction.get("value", "Enter")
+                try:
+                    await page.keyboard.press(key)
+                    await page.wait_for_load_state("networkidle", timeout=5000)
+                except Exception as e:
+                    history.append({"step": step, "error": str(e)})
+            elif action == "download":
+                download_url = instruction.get("value", "")
+                if download_url:
+                    try:
+                        from pathlib import Path
+
+                        import httpx
+
+                        resp = httpx.get(download_url, follow_redirects=True)
+                        fname = download_url.split("/")[-1]
+                        if not fname or "." not in fname:
+                            fname = "download.pdf"
+                        dl_dir = Path.cwd() / "downloads"
+                        dl_dir.mkdir(exist_ok=True)
+                        dl_path = dl_dir / fname
+                        dl_path.write_bytes(resp.content)
+                        result_data = {
+                            "downloaded": str(dl_path),
+                            "size_bytes": len(resp.content),
+                        }
+                        history.append({
+                            "step": step,
+                            "info": f"Downloaded {len(resp.content)} bytes to {dl_path}",
+                        })
+                    except Exception as e:
+                        history.append({"step": step, "error": str(e)})
             elif action == "scroll":
-                await page.evaluate("window.scrollBy(0, 500)")
+                distance = int(instruction.get("value", "500"))
+                await page.evaluate(f"window.scrollBy(0, {distance})")
             elif action == "wait":
                 await page.wait_for_timeout(2000)
 

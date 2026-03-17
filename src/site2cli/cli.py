@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from site2cli import __version__
+from site2cli.config import get_config
 
 app = typer.Typer(
     name="site2cli",
@@ -189,9 +190,14 @@ def run(
     action: str = typer.Argument(help="Action to execute"),
     params: Optional[list[str]] = typer.Argument(None, help="key=value parameters"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+    no_headless: bool = typer.Option(False, "--no-headless", help="Show browser window"),
 ) -> None:
     """Execute a discovered action on a site."""
     from site2cli.router import Router
+
+    config = get_config()
+    if no_headless:
+        config.browser.headless = False
 
     registry = _get_registry()
     router = Router(registry)
