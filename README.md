@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <img src="assets/demo.gif" alt="site2cli demo" width="100%">
+</p>
+
+<p align="center">
   <strong>Turn any website into a CLI/API for AI agents.</strong>
 </p>
 
@@ -332,7 +336,20 @@ ruff check src/ tests/
 - **Anthropic API key** (`ANTHROPIC_API_KEY`): Used for LLM-assisted endpoint analysis. Optional — discovery works without it, just without enhanced descriptions.
 - **No other keys required** for core functionality.
 
-## What's New in v0.3.0
+## What's New in v0.3.1
+
+- **Claude Code MCP integration** — `claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp` works out of the box
+- **Live browser validation** — Experiment 15: real Playwright browser → CDP capture → full pipeline tested against 5 public sites (4/5 pass)
+- **LLM-driven exploration validated** — REST Countries: Claude found `/v3.1/all` endpoint in 8 browser steps
+- **Auto-probe for static sites** — When homepage has no XHR, automatically discovers and probes API-like links (`/posts`, `/users`, etc.)
+- **False captcha fix** — Invisible reCAPTCHA scoring iframes no longer block discovery
+- **Navigation timeout fallback** — Falls back to `domcontentloaded` when `networkidle` hangs
+- **MCP tool name sanitization** — Strips invalid characters from tool names (was crashing MCP SDK)
+- **Community export/import validated** — Full roundtrip: export → remove → reimport → API calls succeed
+- **Terminal demo GIF** — `assets/demo.gif` shows the full discover → run → export flow
+
+<details>
+<summary>v0.3.0</summary>
 
 - **Cookie management** — `site2cli cookies list/set/clear/export/import` with Playwright-compatible format
 - **Browser profile import** — `site2cli auth profile-import --browser chrome` auto-detects Chrome/Firefox profiles
@@ -342,6 +359,8 @@ ruff check src/ tests/
 - **Unified MCP server** — `site2cli --mcp` or `site2cli mcp serve-all` serves ALL discovered sites as MCP tools
 - **Indexed accessibility tree** — Interactive elements marked with `[@N]` notation for precise LLM-driven actions
 - **306 tests** (up from 214), all passing
+
+</details>
 
 <details>
 <summary>v0.2.5</summary>
@@ -374,6 +393,10 @@ ruff check src/ tests/
 - [x] Named session persistence & reuse
 - [x] Background browser daemon
 - [x] Unified MCP server (all sites as tools)
+- [x] Claude Code / Claude Desktop MCP integration
+- [x] Live browser discovery validation (Experiment 15)
+- [x] LLM-driven browser exploration (Tier 1) validated
+- [x] Community spec export/import validated end-to-end
 - [ ] OAuth device flow support
 - [ ] Multi-site orchestration
 - [ ] Trained endpoint classifier (replace heuristics)
