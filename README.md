@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/demo.gif" alt="site2cli demo" width="100%">
+  <img src="assets/discover_pokeapi.gif" alt="site2cli: discover → run → real API data" width="100%">
 </p>
 
 <p align="center">
@@ -105,7 +105,7 @@ site2cli discover kayak.com --action "search flights"
 ### Use the Generated Interface
 
 <p align="center">
-  <img src="assets/discovery.gif" alt="Discovery & Run demo" width="100%">
+  <img src="assets/discover_httpbin.gif" alt="httpbin discovery demo" width="100%">
 </p>
 
 ```bash
@@ -199,6 +199,14 @@ From a single discovery session, site2cli produces:
 | **Python Client** | Typed httpx client with methods for each endpoint |
 | **CLI Commands** | Typer commands you can run from terminal |
 | **MCP Server** | Tools that AI agents (Claude, etc.) can call directly |
+
+## Auto-Probe Discovery
+
+Static homepage with no XHR? site2cli auto-discovers and probes REST-like links:
+
+<p align="center">
+  <img src="assets/discover_jsonplaceholder.gif" alt="JSONPlaceholder auto-probe discovery" width="100%">
+</p>
 
 ## Community Spec Sharing
 
