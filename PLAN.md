@@ -306,11 +306,41 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 - Health monitoring for discovered APIs
 - Self-healing when sites change their APIs
 
+### Phase 6: Sessions, Daemon & Unified MCP (Week 11-12) ✅ COMPLETE
+
+**Files created:**
+- `src/site2cli/auth/cookies.py` — Cookie CRUD, import/export (Playwright-compatible format)
+- `src/site2cli/auth/profiles.py` — Chrome/Firefox profile auto-detection & import
+- `src/site2cli/browser/session.py` — Named browser session persistence & reuse
+- `src/site2cli/browser/context.py` — Unified browser context factory (profiles + sessions + cookies)
+- `src/site2cli/daemon/server.py` — Background browser daemon (JSON-RPC over Unix socket)
+- `src/site2cli/daemon/client.py` — Daemon client for CLI commands
+- `src/site2cli/mcp/server.py` — Unified MCP server for ALL discovered sites
+
+**Files modified:**
+- `src/site2cli/cli.py` — 20+ new commands: cookies, profiles, sessions, workflows, daemon, mcp serve-all
+- `src/site2cli/config.py` — Added profile, session, profiles_dir, daemon_socket_path
+- `src/site2cli/registry.py` — Added workflows table and CRUD methods
+- `src/site2cli/auth/manager.py` — CookieManager integration, Playwright cookie format
+- `src/site2cli/browser/a11y.py` — A11yNode dataclass, indexed `[@N]` notation for LLM
+- `src/site2cli/tiers/browser_explorer.py` — Unified browser context, session/profile support, workflow recording
+- `src/site2cli/tiers/cached_workflow.py` — WorkflowRecorder & WorkflowPlayer with parameterization
+- `src/site2cli/discovery/capture.py` — Refactored to use `create_browser_context()`
+
+**What it does:**
+- Cookie management with Playwright-compatible format and auto-migration from old format
+- Browser profile import from Chrome/Firefox with platform-aware detection
+- Named browser sessions that persist across CLI calls
+- Unified browser context factory replacing scattered browser launch code
+- Background daemon keeping browsers alive between commands (JSON-RPC over Unix socket)
+- Unified MCP server exposing ALL discovered sites as tools via `site2cli --mcp`
+- Workflow recording and replay with parameterization
+
 ---
 
 ## Verification & Testing
 
-1. **Unit tests**: Test each component in isolation (capture, analyze, generate) — ✅ 150 tests passing across 15 test files
+1. **Unit tests**: Test each component in isolation (capture, analyze, generate) — ✅ 300 tests passing across 28 test files
 2. **Integration test — simple site**: Full pipeline test with mock JSONPlaceholder-like traffic — ✅ 11 tests passing (`test_integration_pipeline.py`)
 3. **Integration test — real site**: Live tests against jsonplaceholder.typicode.com and httpbin.org — ✅ 6 tests passing (`test_integration_live.py`)
 4. **MCP test**: Generated MCP server code validates (syntax + structure) — ✅ Covered in pipeline + live tests + `test_generated_code.py` (8 tests)
@@ -321,9 +351,15 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 9. **Health test**: Health check with mock httpx, status persistence — ✅ 8 tests (`test_health.py`)
 10. **Router test**: Router execution, fallback, promotion, param forwarding — ✅ 15 tests (`test_router.py`)
 11. **Community test**: Export/import roundtrip, community listing — ✅ 6 tests (`test_community.py`)
-12. **Live validation (Experiment #8)**: Full pipeline against 5 real public APIs (JSONPlaceholder, httpbin, Dog CEO, Open-Meteo, GitHub) — ✅ 25 endpoints discovered, all specs valid, all generated clients make real API calls, 25 MCP tools generated, avg 310ms per API
+12. **Cookie test**: Cookie CRUD, import/export, Playwright format migration — ✅ 23 tests (`test_cookies.py`)
+13. **Workflow test**: Recording, parameterization, domain CRUD — ✅ 15 tests (`test_workflow_recorder.py`)
+14. **MCP server test**: Unified MCP server, tool schemas, registry integration — ✅ 14 tests (`test_mcp_server.py`)
+15. **Profile test**: Chrome/Firefox profile detection & import — ✅ 12 tests (`test_profiles.py`)
+16. **Daemon test**: Server lifecycle, JSON-RPC protocol — ✅ 12 tests (`test_daemon.py`)
+17. **Session test**: Named session persistence & reuse — ✅ 10 tests (`test_session.py`)
+18. **Live validation (Experiment #8)**: Full pipeline against 5 real public APIs (JSONPlaceholder, httpbin, Dog CEO, Open-Meteo, GitHub) — ✅ 25 endpoints discovered, all specs valid, all generated clients make real API calls, 25 MCP tools generated, avg 310ms per API
 
-**Total: 156 tests, all passing** (150 unit/integration + 6 live)
+**Total: 306 tests, all passing** (300 unit/integration + 6 live)
 
 ### Bugs Found & Fixed by Integration Tests
 - `models.py`: `example_response` typed as `dict | None` but API responses can be arrays — fixed to `dict | list | None`

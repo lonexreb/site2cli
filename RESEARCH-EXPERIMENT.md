@@ -536,6 +536,65 @@ Integrating webctl-inspired browser automation features (cookie banner dismissal
 
 ---
 
+## Experiment #16: Cookies, Profiles, Sessions, Daemon & Unified MCP (2026-03-28)
+
+**Date**: 2026-03-28
+**Status**: Complete
+
+### Hypothesis
+
+Adding persistent browser state management (cookies, profiles, sessions), a background daemon, and a unified MCP server will enable site2cli to handle authenticated sites and serve as a single MCP endpoint for AI agents across all discovered sites.
+
+### What Was Added
+
+**New `auth/` modules** (2 files):
+- `cookies.py` — CookieManager class: CRUD, import/export, Playwright-compatible format, auto-migration from old `{name: value}` dict format
+- `profiles.py` — ProfileManager class: Chrome/Firefox profile auto-detection (platform-aware macOS/Linux/Windows), selective copy (skips cache), profile listing & removal
+
+**New `browser/` modules** (2 files):
+- `session.py` — SessionManager: named sessions persisted across CLI calls, atexit cleanup, singleton pattern
+- `context.py` — `create_browser_context()` async context manager: unified browser launch factory replacing scattered browser creation code. Supports profiles, sessions, cookie injection, headless/stealth mode
+
+**New `daemon/` package** (2 files):
+- `server.py` — DaemonServer: JSON-RPC over Unix socket (`~/.site2cli/daemon.sock`). Methods: list_sessions, create_session, close_session, execute, discover, shutdown
+- `client.py` — DaemonClient: JSON-RPC client with connection error handling
+
+**New `mcp/` package** (1 file):
+- `server.py` — Unified MCP server: serves ALL discovered sites as MCP tools. Tool names: `{domain_prefix}_{action_name}`. Dynamic tool generation from site registry, router-based execution
+
+**Modified files:**
+- `cli.py` — 20+ new commands across 6 command groups (cookies, profiles, sessions, workflows, daemon, mcp)
+- `config.py` — Added profile, session, profiles_dir, daemon_socket_path fields
+- `registry.py` — Added workflows table with CRUD methods
+- `auth/manager.py` — CookieManager integration, Playwright cookie format
+- `browser/a11y.py` — A11yNode dataclass, `[@N]` indexed notation
+- `tiers/browser_explorer.py` — Unified context, session/profile support, workflow recording
+- `tiers/cached_workflow.py` — WorkflowRecorder & WorkflowPlayer with parameterization
+- `discovery/capture.py` — Refactored to use `create_browser_context()`
+
+### Results
+
+- **92 new tests** across 6 new test files, all passing
+- **306 total tests** (300 unit/integration + 6 live), all passing
+- **0 existing tests broken** — fully backward compatible
+- **0 new external dependencies** — uses Playwright APIs + stdlib
+- **Lint clean** (ruff check passes)
+
+### Key Findings
+
+1. **Unified browser context factory** eliminates code duplication across browser_explorer, cached_workflow, and capture modules — single place to manage profiles, sessions, cookies, stealth, and UA
+2. **Old cookie format migration** was necessary — existing `{name: value}` dicts auto-upgrade to Playwright's `[{name, value, domain, path, ...}]` list format on first access
+3. **Daemon architecture reverses Experiment #15's decision** — persistent browser sessions turned out to be valuable for authenticated workflows where re-login is expensive
+4. **Unified MCP server** is the natural endpoint for AI agent integration — one `site2cli --mcp` command exposes every discovered site as tools
+
+### What Was NOT Added (and Why)
+
+- **WebSocket support** — not needed for current REST-focused discovery
+- **GraphQL support** — would require separate query introspection, deferred to future work
+- **Rate limiting** — should be per-site configurable, deferred to avoid over-engineering
+
+---
+
 ## Learnings & Mistakes
 
 ### L1: pytest-asyncio version compatibility (2026-03-11)
