@@ -16,7 +16,7 @@ class Router:
     def __init__(self, registry: SiteRegistry) -> None:
         self._registry = registry
         self._config = get_config()
-        self._browser = BrowserExplorer()
+        self._browser = BrowserExplorer(registry=registry)
         self._workflow_player = WorkflowPlayer()
         self._direct_api = DirectAPIExecutor()
 

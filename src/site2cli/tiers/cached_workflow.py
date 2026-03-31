@@ -17,21 +17,36 @@ if TYPE_CHECKING:
 class WorkflowRecorder:
     """Records browser interactions as replayable workflows."""
 
-    def __init__(self) -> None:
+    def __init__(self, domain: str = "", name: str = "") -> None:
         self._config = get_config()
+        self._domain = domain
+        self._name = name
         self._steps: list[WorkflowStep] = []
         self._parameters: list[ParameterInfo] = []
+
+    @property
+    def steps(self) -> list[WorkflowStep]:
+        return self._steps
 
     def add_step(self, step: WorkflowStep) -> None:
         self._steps.append(step)
 
-    def parameterize(self, param_map: dict[str, str]) -> None:
+    def parameterize(
+        self, literal_or_map: str | dict[str, str], param_name: str | None = None
+    ) -> None:
         """Replace hardcoded values with parameter templates.
 
-        Args:
-            param_map: Maps parameter names to the literal values to replace.
-                       e.g., {"departure_city": "SFO", "arrival_city": "JFK"}
+        Supports two calling conventions:
+            parameterize("SFO", "departure_city")          # (literal, name)
+            parameterize({"departure_city": "SFO", ...})   # dict mapping name→literal
         """
+        if isinstance(literal_or_map, dict):
+            param_map = literal_or_map
+        else:
+            if param_name is None:
+                raise ValueError("param_name required when first arg is a literal value")
+            param_map = {param_name: literal_or_map}
+
         for name, literal_value in param_map.items():
             self._parameters.append(
                 ParameterInfo(name=name, location="body", param_type="string", required=True)
@@ -41,11 +56,13 @@ class WorkflowRecorder:
                     step.value = step.value.replace(literal_value, f"{{{name}}}")
                     step.parameterized = True
 
-    def build(self, site_domain: str, action_name: str) -> RecordedWorkflow:
+    def build(
+        self, site_domain: str | None = None, action_name: str | None = None
+    ) -> RecordedWorkflow:
         return RecordedWorkflow(
             id=str(uuid.uuid4()),
-            site_domain=site_domain,
-            action_name=action_name,
+            site_domain=site_domain or self._domain,
+            action_name=action_name or self._name,
             steps=self._steps,
             parameters=self._parameters,
             recorded_at=datetime.utcnow(),
@@ -63,22 +80,23 @@ class WorkflowPlayer:
         workflow: RecordedWorkflow,
         params: dict[str, str],
         start_url: str | None = None,
+        *,
+        profile: str | None = None,
+        inject_cookies_for: str | None = None,
     ) -> dict:
         """Replay a recorded workflow with substituted parameters.
 
         Returns:
             Dict with results from the workflow execution.
         """
-        from playwright.async_api import async_playwright
+        from site2cli.browser.context import create_browser_context
 
         config = self._config
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=config.browser.headless)
-            context = await browser.new_context(
-                viewport={"width": 1920, "height": 1080},
-            )
-            page = await context.new_page()
-
+        cookie_domain = inject_cookies_for or workflow.site_domain
+        async with create_browser_context(
+            profile=profile or config.browser.profile,
+            inject_cookies_for=cookie_domain,
+        ) as (_browser, _context, page):
             if start_url:
                 await page.goto(
                     start_url,
@@ -107,8 +125,6 @@ class WorkflowPlayer:
                 final_data["title"] = await page.title()
             except Exception:
                 pass
-
-            await browser.close()
 
         return {
             "steps_executed": len(results),

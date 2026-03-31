@@ -25,18 +25,27 @@ src/site2cli/
 │   ├── wait.py         # Rich wait conditions (network-idle, selector, stable)
 │   ├── cookie_banner.py # Cookie consent auto-dismissal (3 strategies)
 │   ├── detectors.py    # Auth/SSO/CAPTCHA page detection
-│   └── a11y.py         # Accessibility tree extraction for LLM context
+│   ├── a11y.py         # Accessibility tree extraction + indexed [@N] notation
+│   ├── context.py      # Unified browser context factory (profiles + sessions)
+│   └── session.py      # Named browser session persistence and reuse
 ├── output_filter.py    # Output filtering (grep, limit, keys-only)
 ├── generators/
 │   ├── cli_gen.py      # Dynamic CLI command generation
 │   ├── mcp_gen.py      # MCP server generation
 │   └── agent_config.py # Agent config generation (Claude MCP, generic)
 ├── auth/
-│   └── manager.py      # Auth flow management
+│   ├── manager.py      # Auth flow management (Playwright cookie format)
+│   ├── cookies.py      # Cookie CRUD, import/export (Playwright-compatible)
+│   └── profiles.py     # Chrome/Firefox profile detection & import
 ├── tiers/
 │   ├── browser_explorer.py  # Tier 1: LLM-driven browser
 │   ├── cached_workflow.py   # Tier 2: Recorded workflow replay
 │   └── direct_api.py        # Tier 3: Direct API calls
+├── daemon/
+│   ├── server.py       # Background browser daemon (JSON-RPC over Unix socket)
+│   └── client.py       # Daemon client for CLI commands
+├── mcp/
+│   └── server.py       # Unified MCP server for ALL discovered sites
 ├── health/
 │   ├── monitor.py      # API health checking
 │   └── self_heal.py    # LLM-powered breakage repair
@@ -66,7 +75,7 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 214 unit/integration tests (no network)
+pytest                    # 300 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
@@ -94,8 +103,14 @@ pytest -v                 # Verbose output
 - `test_community.py` — Export/import roundtrip (6 tests)
 - `test_integration_live.py` — Live API tests, marked `@pytest.mark.live` (6 tests)
 - `test_client_generator.py` — Python client code gen (4 tests)
+- `test_cookies.py` — Cookie CRUD, import/export, migration (23 tests)
+- `test_workflow_recorder.py` — Workflow recording, parameterization, CRUD (15 tests)
+- `test_mcp_server.py` — Unified MCP server, tool schemas, registry (14 tests)
+- `test_profiles.py` — Chrome/Firefox profile detection, import (12 tests)
+- `test_daemon.py` — Daemon server lifecycle, JSON-RPC protocol (12 tests)
+- `test_session.py` — Named session persistence and reuse (10 tests)
 
-**Total: 214 tests (208 + 6 live), all passing.**
+**Total: 306 tests (300 + 6 live), all passing.**
 
 ## Live Validation (7 Experiments, All Passing)
 

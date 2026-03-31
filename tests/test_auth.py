@@ -68,10 +68,19 @@ def test_get_api_key_missing_returns_none(manager, mock_keyring):
 # ---------------------------------------------------------------------------
 
 def test_store_and_get_cookies(manager):
+    # Old flat dict format should be auto-migrated to Playwright format
     cookies = {"session": "abc123", "csrftoken": "xyz"}
     manager.store_cookies("example.com", cookies)
     result = manager.get_cookies("example.com")
-    assert result == cookies
+    assert isinstance(result, list)
+    assert len(result) == 2
+    names = {c["name"] for c in result}
+    assert names == {"session", "csrftoken"}
+    # Each cookie should have Playwright fields
+    for c in result:
+        assert "domain" in c
+        assert "path" in c
+        assert c["value"] in ("abc123", "xyz")
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +153,7 @@ def test_clear_auth_removes_credentials_and_cookies(manager, mock_keyring):
     # Sanity-check they are stored
     assert manager.get_api_key(domain) == "key-to-delete"
     assert manager.get_token(domain) == "tok-to-delete"
-    assert manager.get_cookies(domain) == {"session": "del-me"}
+    assert manager.get_cookies(domain) is not None
 
     manager.clear_auth(domain)
 
@@ -159,4 +168,4 @@ def test_clear_auth_removes_credentials_and_cookies(manager, mock_keyring):
 
 def test_get_auth_cookies_empty_when_none_stored(manager):
     result = manager.get_auth_cookies("nowhere.com")
-    assert result == {}
+    assert result == []

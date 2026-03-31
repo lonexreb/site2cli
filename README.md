@@ -11,7 +11,7 @@
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/v/site2cli" alt="PyPI"></a>
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/pyversions/site2cli" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/lonexreb/site2cli" alt="License"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-214_passing-brightgreen" alt="Tests"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-306_passing-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -68,6 +68,8 @@ graph TD
 | Self-healing | No | No | No | No | **Yes** |
 | No browser needed (after discovery) | No | Yes | No | No | **Yes** |
 | Agent init/config | No | No | No | **Yes** | **Yes** |
+| Session persistence | No | No | No | No | **Yes** |
+| Cookie management | No | No | No | No | **Yes** |
 | Community spec sharing | No | No | No | No | **Yes** |
 
 ## Quick Start
@@ -104,6 +106,30 @@ site2cli run kayak.com search_flights from=SFO to=JFK date=2025-04-01
 # Or as MCP tools for AI agents
 site2cli mcp generate kayak.com
 site2cli mcp serve kayak.com
+```
+
+### Manage Browser Auth & Sessions
+
+```bash
+# Import a Chrome profile for authenticated discovery
+site2cli auth profile-import --browser chrome
+
+# Manage cookies
+site2cli cookies list example.com
+site2cli cookies export example.com
+
+# Reuse browser sessions across commands
+site2cli discover example.com --session my-session
+site2cli run example.com search --session my-session
+
+# Background browser daemon (persistent browser across CLI calls)
+site2cli daemon start
+site2cli daemon status
+site2cli daemon stop
+
+# Unified MCP server for ALL discovered sites
+site2cli --mcp
+# or: site2cli mcp serve-all
 ```
 
 ## As a Python Library
@@ -227,7 +253,7 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 
 ## Testing
 
-**214 tests** (208 unit/integration + 6 live), all passing on Python 3.10+.
+**306 tests** (300 unit/integration + 6 live), all passing on Python 3.10+.
 
 | Test File | Tests | Coverage Area |
 |---|---|---|
@@ -252,6 +278,12 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 | `test_spec_generator.py` | 6 | OpenAPI spec generation and persistence |
 | `test_community.py` | 6 | Export/import roundtrip, community listing |
 | `test_client_generator.py` | 4 | Python client code generation |
+| `test_cookies.py` | 23 | Cookie CRUD, import/export, Playwright format migration |
+| `test_workflow_recorder.py` | 15 | Workflow recording, parameterization, domain CRUD |
+| `test_mcp_server.py` | 14 | Unified MCP server, tool schema generation, registry |
+| `test_profiles.py` | 12 | Chrome/Firefox profile detection & import |
+| `test_daemon.py` | 12 | Daemon server lifecycle, JSON-RPC over Unix socket |
+| `test_session.py` | 10 | Named browser session persistence & reuse |
 | `test_integration_live.py` | 6 | Live tests against JSONPlaceholder + httpbin |
 
 ## Development
@@ -276,7 +308,19 @@ ruff check src/ tests/
 - **Anthropic API key** (`ANTHROPIC_API_KEY`): Used for LLM-assisted endpoint analysis. Optional — discovery works without it, just without enhanced descriptions.
 - **No other keys required** for core functionality.
 
-## What's New in v0.2.5
+## What's New in v0.3.0
+
+- **Cookie management** — `site2cli cookies list/set/clear/export/import` with Playwright-compatible format
+- **Browser profile import** — `site2cli auth profile-import --browser chrome` auto-detects Chrome/Firefox profiles
+- **Named browser sessions** — `--session` flag on discover/run, `site2cli session list/close/close-all`
+- **Workflow recording** — Record and replay browser workflows with parameterization (`site2cli workflows list/show/delete`)
+- **Background browser daemon** — `site2cli daemon start/stop/status` keeps a persistent browser for faster operations
+- **Unified MCP server** — `site2cli --mcp` or `site2cli mcp serve-all` serves ALL discovered sites as MCP tools
+- **Indexed accessibility tree** — Interactive elements marked with `[@N]` notation for precise LLM-driven actions
+- **306 tests** (up from 214), all passing
+
+<details>
+<summary>v0.2.5</summary>
 
 - **Cookie banner auto-dismissal** — 3-strategy detection (30+ vendor selectors, multilingual text matching, a11y role matching) runs automatically during discovery
 - **Auth page detection** — Detects login/SSO/OAuth/MFA/CAPTCHA pages and suggests `site2cli auth login`
@@ -285,7 +329,8 @@ ruff check src/ tests/
 - **Rich wait conditions** — 9 condition types: `network-idle`, `load`, `exists:<selector>`, `visible:<selector>`, `hidden:<selector>`, `url-contains:<text>`, `text-contains:<text>`, `stable`
 - **Output filtering** — `--grep`, `--limit`, `--keys-only`, `--compact` flags on `site2cli run`
 - **Agent init command** — `site2cli init` generates Claude MCP config or generic agent prompts from discovered sites
-- **214 tests** (up from 156), all passing
+
+</details>
 
 ## Roadmap
 
@@ -300,8 +345,12 @@ ruff check src/ tests/
 - [x] Accessibility tree extraction for browser exploration
 - [x] Agent init/config generation
 - [x] Output filtering for run results
+- [x] Cookie management & browser profile import
+- [x] Workflow recording & replay
+- [x] Named session persistence & reuse
+- [x] Background browser daemon
+- [x] Unified MCP server (all sites as tools)
 - [ ] OAuth device flow support
-- [ ] Workflow recording UI
 - [ ] Multi-site orchestration
 - [ ] Trained endpoint classifier (replace heuristics)
 

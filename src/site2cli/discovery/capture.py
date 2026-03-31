@@ -72,6 +72,9 @@ class TrafficCapture:
         url: str,
         interaction_callback: callable | None = None,
         duration_seconds: int = 30,
+        *,
+        profile: str | None = None,
+        inject_cookies_for: str | None = None,
     ) -> list[CapturedExchange]:
         """Launch browser, navigate to URL, capture traffic.
 
@@ -79,24 +82,21 @@ class TrafficCapture:
             url: The URL to navigate to.
             interaction_callback: Optional async function(page) to interact with the page.
             duration_seconds: How long to wait for traffic if no callback.
+            profile: Browser profile name to use.
+            inject_cookies_for: Domain to inject stored cookies for.
 
         Returns:
             List of captured request/response exchanges.
         """
         config = self._config
-        async_playwright = self._ensure_playwright()
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=config.browser.headless)
-            context = await browser.new_context(
-                viewport={"width": 1920, "height": 1080},
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-            )
+        self._ensure_playwright()
+        from site2cli.browser.context import create_browser_context
 
-            page = await context.new_page()
+        cookie_domain = inject_cookies_for or self.target_domain
+        async with create_browser_context(
+            profile=profile or config.browser.profile,
+            inject_cookies_for=cookie_domain,
+        ) as (browser, context, page):
 
             # Set up CDP network interception
             client = await context.new_cdp_session(page)
@@ -208,8 +208,6 @@ class TrafficCapture:
             else:
                 # Wait for dynamic content and API calls
                 await page.wait_for_timeout(min(duration_seconds * 1000, config.browser.timeout_ms))
-
-            await browser.close()
 
         return self.exchanges
 

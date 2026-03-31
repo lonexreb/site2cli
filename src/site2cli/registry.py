@@ -9,6 +9,7 @@ from pathlib import Path
 from site2cli.models import (
     AuthType,
     HealthStatus,
+    RecordedWorkflow,
     SiteAction,
     SiteEntry,
     Tier,
@@ -205,6 +206,77 @@ class SiteRegistry:
             (health.value, datetime.utcnow().isoformat(), domain, action_name),
         )
         self.conn.commit()
+
+    # --- Workflow CRUD ---
+
+    def save_workflow(self, workflow: RecordedWorkflow) -> None:
+        """Save a recorded workflow to the database."""
+
+        steps_json = "[" + ",".join(s.model_dump_json() for s in workflow.steps) + "]"
+        params_json = (
+            "[" + ",".join(p.model_dump_json() for p in workflow.parameters) + "]"
+        )
+        self.conn.execute(
+            """INSERT OR REPLACE INTO workflows
+               (id, site_domain, action_name, steps_json, parameters_json,
+                recorded_at, replay_count, success_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                workflow.id,
+                workflow.site_domain,
+                workflow.action_name,
+                steps_json,
+                params_json,
+                workflow.recorded_at.isoformat(),
+                workflow.replay_count,
+                workflow.success_count,
+            ),
+        )
+        self.conn.commit()
+
+    def get_workflow(self, workflow_id: str) -> RecordedWorkflow | None:
+        """Get a workflow by ID."""
+        import json as _json
+
+        from site2cli.models import ParameterInfo, RecordedWorkflow, WorkflowStep
+
+        row = self.conn.execute(
+            "SELECT * FROM workflows WHERE id = ?", (workflow_id,)
+        ).fetchone()
+        if not row:
+            return None
+        steps = [WorkflowStep.model_validate(s) for s in _json.loads(row["steps_json"])]
+        params = [ParameterInfo.model_validate(p) for p in _json.loads(row["parameters_json"])]
+        return RecordedWorkflow(
+            id=row["id"],
+            site_domain=row["site_domain"],
+            action_name=row["action_name"],
+            steps=steps,
+            parameters=params,
+            recorded_at=datetime.fromisoformat(row["recorded_at"]),
+            replay_count=row["replay_count"],
+            success_count=row["success_count"],
+        )
+
+    def list_workflows(self) -> list[RecordedWorkflow]:
+        """List all recorded workflows."""
+        rows = self.conn.execute(
+            "SELECT id FROM workflows ORDER BY recorded_at DESC"
+        ).fetchall()
+        workflows = []
+        for row in rows:
+            wf = self.get_workflow(row["id"])
+            if wf:
+                workflows.append(wf)
+        return workflows
+
+    def delete_workflow(self, workflow_id: str) -> bool:
+        """Delete a workflow by ID."""
+        cursor = self.conn.execute(
+            "DELETE FROM workflows WHERE id = ?", (workflow_id,)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
 
     def close(self) -> None:
         if self._conn:

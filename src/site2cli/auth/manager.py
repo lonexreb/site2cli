@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import json
+from typing import Any
 
 import keyring
 
+from site2cli.auth.cookies import CookieManager
 from site2cli.config import get_config
 from site2cli.models import AuthType
 
@@ -20,6 +21,7 @@ class AuthManager:
         self._config = get_config()
         self._credentials_dir = self._config.data_dir / "auth"
         self._credentials_dir.mkdir(parents=True, exist_ok=True)
+        self._cookie_mgr = CookieManager()
 
     def store_api_key(self, domain: str, api_key: str) -> None:
         """Store an API key securely using system keyring."""
@@ -32,19 +34,25 @@ class AuthManager:
             key = keyring.get_password(_OLD_KEYRING_SERVICE, f"{domain}:api_key")
         return key
 
-    def store_cookies(self, domain: str, cookies: dict[str, str]) -> None:
-        """Store cookies for a domain."""
-        cookie_file = self._credentials_dir / f"{domain}.cookies.json"
-        with open(cookie_file, "w") as f:
-            json.dump(cookies, f)
+    def store_cookies(
+        self, domain: str, cookies: dict[str, str] | list[dict[str, Any]]
+    ) -> None:
+        """Store cookies for a domain. Accepts both old flat and Playwright formats."""
+        if isinstance(cookies, dict):
+            # Old flat format — migrate to Playwright format
+            pw_cookies = CookieManager._migrate_flat_dict(cookies, domain)
+            self._cookie_mgr.set_all(domain, pw_cookies)
+        else:
+            self._cookie_mgr.set_all(domain, cookies)
 
-    def get_cookies(self, domain: str) -> dict[str, str] | None:
-        """Retrieve stored cookies for a domain."""
-        cookie_file = self._credentials_dir / f"{domain}.cookies.json"
-        if cookie_file.exists():
-            with open(cookie_file) as f:
-                return json.load(f)
-        return None
+    def get_cookies(self, domain: str) -> list[dict[str, Any]] | None:
+        """Retrieve stored cookies in Playwright-compatible format."""
+        cookies = self._cookie_mgr.list(domain)
+        return cookies if cookies else None
+
+    def get_playwright_cookies(self, domain: str) -> list[dict[str, Any]]:
+        """Get cookies ready for Playwright context.add_cookies()."""
+        return self._cookie_mgr.get_playwright_cookies(domain)
 
     def store_token(self, domain: str, token: str, token_type: str = "bearer") -> None:
         """Store an OAuth/bearer token."""
@@ -71,25 +79,38 @@ class AuthManager:
                 return {"Authorization": f"Bearer {token}"}
         return {}
 
-    def get_auth_cookies(self, domain: str) -> dict[str, str]:
+    def get_auth_cookies(self, domain: str) -> list[dict[str, Any]]:
         """Get authentication cookies for a domain."""
-        return self.get_cookies(domain) or {}
+        return self.get_cookies(domain) or []
 
-    def extract_browser_cookies(self, domain: str) -> dict[str, str] | None:
+    def extract_browser_cookies(self, domain: str) -> list[dict[str, Any]] | None:
         """Extract cookies from the user's real browser for a domain."""
         try:
             import browser_cookie3
 
-            cookies = {}
+            pw_cookies: list[dict[str, Any]] = []
             # Try Chrome first, then Firefox
             for loader in [browser_cookie3.chrome, browser_cookie3.firefox]:
                 try:
                     jar = loader(domain_name=f".{domain}")
                     for cookie in jar:
-                        cookies[cookie.name] = cookie.value
-                    if cookies:
-                        self.store_cookies(domain, cookies)
-                        return cookies
+                        pw_cookies.append({
+                            "name": cookie.name,
+                            "value": cookie.value,
+                            "domain": cookie.domain or f".{domain}",
+                            "path": cookie.path or "/",
+                            "secure": bool(cookie.secure),
+                            "httpOnly": bool(
+                                getattr(cookie, "has_nonstandard_attr", lambda _: False)(
+                                    "HttpOnly"
+                                )
+                            ),
+                            "sameSite": "Lax",
+                            "expires": cookie.expires or -1,
+                        })
+                    if pw_cookies:
+                        self._cookie_mgr.set_all(domain, pw_cookies)
+                        return pw_cookies
                 except Exception:
                     continue
         except ImportError:

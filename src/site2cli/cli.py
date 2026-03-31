@@ -18,9 +18,20 @@ from site2cli.config import get_config
 app = typer.Typer(
     name="site2cli",
     help="Turn any website into a CLI/API for AI agents.",
+    invoke_without_command=True,
     no_args_is_help=True,
 )
 console = Console()
+
+
+@app.callback()
+def main_callback(
+    mcp: bool = typer.Option(False, "--mcp", help="Run as unified MCP server for all sites"),
+) -> None:
+    """site2cli — Turn any website into a CLI/API for AI agents."""
+    if mcp:
+        mcp_serve_all()
+        raise typer.Exit()
 
 
 def _get_registry():
@@ -57,6 +68,8 @@ def discover(
     headless: bool = typer.Option(True, help="Run browser in headless mode"),
     enhance: bool = typer.Option(True, help="Use LLM to enhance discovered endpoints"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output spec to file"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile to use"),
+    session: Optional[str] = typer.Option(None, "--session", help="Session name to reuse"),
 ) -> None:
     """Discover API endpoints for a website by capturing network traffic."""
     from site2cli.config import get_config
@@ -79,6 +92,10 @@ def discover(
 
     config = get_config()
     config.browser.headless = headless
+    if profile:
+        config.browser.profile = profile
+    if session:
+        config.browser.session = session
 
     console.print(f"[bold]Discovering APIs for[/bold] {domain}...")
 
@@ -197,6 +214,8 @@ def run(
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit array results"),
     keys_only: bool = typer.Option(False, "--keys-only", help="Show only top-level keys"),
     compact: bool = typer.Option(False, "--compact", help="Single-line JSON"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile to use"),
+    session: Optional[str] = typer.Option(None, "--session", help="Session name to reuse"),
 ) -> None:
     """Execute a discovered action on a site."""
     from site2cli.router import Router
@@ -204,6 +223,10 @@ def run(
     config = get_config()
     if no_headless:
         config.browser.headless = False
+    if profile:
+        config.browser.profile = profile
+    if session:
+        config.browser.session = session
 
     registry = _get_registry()
     router = Router(registry)
@@ -363,6 +386,290 @@ def auth_logout(domain: str = typer.Argument(help="Site domain")) -> None:
     console.print(f"[green]Cleared auth for {domain}[/green]")
 
 
+# --- Profile Commands ---
+
+
+@auth_app.command("profile-import")
+def auth_profile_import(
+    browser_type: str = typer.Option(
+        "chrome", "--browser", "-b", help="Browser: chrome or firefox"
+    ),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Profile name"),
+) -> None:
+    """Import a browser profile for authenticated sessions."""
+    from site2cli.auth.profiles import ProfileManager
+
+    pm = ProfileManager()
+    if browser_type == "chrome":
+        profiles = pm.detect_chrome_profiles()
+    elif browser_type == "firefox":
+        profiles = pm.detect_firefox_profiles()
+    else:
+        console.print(f"[red]Unknown browser: {browser_type}[/red]")
+        raise typer.Exit(1)
+
+    if not profiles:
+        console.print(f"[yellow]No {browser_type} profiles found.[/yellow]")
+        raise typer.Exit(1)
+
+    # Show available profiles and let user pick
+    if len(profiles) == 1:
+        source = profiles[0]
+    else:
+        console.print(f"[bold]Available {browser_type} profiles:[/bold]")
+        for i, p in enumerate(profiles):
+            console.print(f"  [{i}] {p.name}")
+        idx = typer.prompt("Select profile number", type=int, default=0)
+        source = profiles[idx]
+
+    profile_name = name or f"{browser_type}-{source.name.lower().replace(' ', '-')}"
+    with console.status(f"[bold green]Importing profile {source.name}..."):
+        dest = pm.copy_profile(source, profile_name)
+    console.print(f"[green]Profile imported as '{profile_name}'[/green] → {dest}")
+    console.print(f"\nUse with: site2cli discover <url> --profile {profile_name}")
+
+
+@auth_app.command("profile-list")
+def auth_profile_list() -> None:
+    """List imported browser profiles."""
+    from site2cli.auth.profiles import ProfileManager
+
+    pm = ProfileManager()
+    profiles = pm.list_profiles()
+    if not profiles:
+        console.print("[yellow]No profiles imported yet.[/yellow]")
+        return
+    for name in profiles:
+        console.print(f"  {name}")
+
+
+@auth_app.command("profile-remove")
+def auth_profile_remove(
+    name: str = typer.Argument(help="Profile name to remove"),
+) -> None:
+    """Remove an imported browser profile."""
+    from site2cli.auth.profiles import ProfileManager
+
+    pm = ProfileManager()
+    if pm.remove_profile(name):
+        console.print(f"[green]Removed profile '{name}'[/green]")
+    else:
+        console.print(f"[red]Profile '{name}' not found[/red]")
+
+
+# --- Cookie Commands ---
+
+cookies_app = typer.Typer(help="Cookie management")
+app.add_typer(cookies_app, name="cookies")
+
+
+@cookies_app.command("list")
+def cookies_list(
+    domain: Optional[str] = typer.Argument(None, help="Domain (all domains if omitted)"),
+) -> None:
+    """List stored cookies."""
+    from site2cli.auth.cookies import CookieManager
+
+    cm = CookieManager()
+    if domain:
+        cookies = cm.list(domain)
+        if not cookies:
+            console.print(f"[yellow]No cookies stored for {domain}[/yellow]")
+            return
+        table = Table(title=f"Cookies for {domain}")
+        table.add_column("Name", style="bold")
+        table.add_column("Value")
+        table.add_column("Path")
+        table.add_column("Secure")
+        table.add_column("HttpOnly")
+        for c in cookies:
+            table.add_row(
+                c["name"],
+                c["value"][:40] + ("..." if len(c["value"]) > 40 else ""),
+                c["path"],
+                str(c["secure"]),
+                str(c["httpOnly"]),
+            )
+        console.print(table)
+    else:
+        domains = cm.list_domains()
+        if not domains:
+            console.print("[yellow]No cookies stored.[/yellow]")
+            return
+        for d in domains:
+            count = len(cm.list(d))
+            console.print(f"  {d} ({count} cookies)")
+
+
+@cookies_app.command("set")
+def cookies_set(
+    domain: str = typer.Argument(help="Cookie domain"),
+    name: str = typer.Argument(help="Cookie name"),
+    value: str = typer.Argument(help="Cookie value"),
+    path: str = typer.Option("/", help="Cookie path"),
+    secure: bool = typer.Option(False, help="Secure flag"),
+    http_only: bool = typer.Option(False, "--http-only", help="HttpOnly flag"),
+) -> None:
+    """Set a cookie for a domain."""
+    from site2cli.auth.cookies import CookieManager
+
+    cm = CookieManager()
+    cm.set(domain, name, value, path=path, secure=secure, http_only=http_only)
+    console.print(f"[green]Set cookie {name} for {domain}[/green]")
+
+
+@cookies_app.command("clear")
+def cookies_clear(
+    domain: str = typer.Argument(help="Domain to clear cookies for"),
+) -> None:
+    """Clear all cookies for a domain."""
+    from site2cli.auth.cookies import CookieManager
+
+    cm = CookieManager()
+    cm.clear(domain)
+    console.print(f"[green]Cleared cookies for {domain}[/green]")
+
+
+@cookies_app.command("export")
+def cookies_export(
+    domain: str = typer.Argument(help="Domain to export cookies for"),
+) -> None:
+    """Export cookies to a JSON file."""
+    from site2cli.auth.cookies import CookieManager
+
+    cm = CookieManager()
+    path = cm.export(domain)
+    console.print(f"[green]Exported to {path}[/green]")
+
+
+@cookies_app.command("import")
+def cookies_import(
+    path: str = typer.Argument(help="Path to cookies JSON file"),
+) -> None:
+    """Import cookies from a JSON file."""
+    from site2cli.auth.cookies import CookieManager
+
+    cm = CookieManager()
+    domain, count = cm.import_file(Path(path))
+    console.print(f"[green]Imported {count} cookies for {domain}[/green]")
+
+
+# --- Session Commands ---
+
+session_app = typer.Typer(help="Browser session management")
+app.add_typer(session_app, name="session")
+
+
+@session_app.command("list")
+def session_list() -> None:
+    """List active browser sessions."""
+    from site2cli.browser.session import get_session_manager
+
+    sm = get_session_manager()
+    sessions = sm.list()
+    if not sessions:
+        console.print("[yellow]No active sessions.[/yellow]")
+        return
+    for name in sessions:
+        console.print(f"  {name}")
+
+
+@session_app.command("close")
+def session_close(
+    name: str = typer.Argument(help="Session name to close"),
+) -> None:
+    """Close a browser session."""
+    from site2cli.browser.session import get_session_manager
+
+    sm = get_session_manager()
+    _run_async(sm.close(name))
+    console.print(f"[green]Closed session '{name}'[/green]")
+
+
+@session_app.command("close-all")
+def session_close_all() -> None:
+    """Close all browser sessions."""
+    from site2cli.browser.session import get_session_manager
+
+    sm = get_session_manager()
+    _run_async(sm.close_all())
+    console.print("[green]Closed all sessions[/green]")
+
+
+# --- Workflow Commands ---
+
+workflows_app = typer.Typer(help="Manage recorded workflows")
+app.add_typer(workflows_app, name="workflows")
+
+
+@workflows_app.command("list")
+def workflows_list() -> None:
+    """List recorded workflows."""
+    registry = _get_registry()
+    workflows = registry.list_workflows()
+    if not workflows:
+        console.print("[yellow]No workflows recorded yet.[/yellow]")
+        return
+    table = Table(title="Recorded Workflows")
+    table.add_column("ID", style="bold")
+    table.add_column("Domain")
+    table.add_column("Action")
+    table.add_column("Steps")
+    table.add_column("Replays")
+    table.add_column("Recorded")
+    for wf in workflows:
+        table.add_row(
+            wf.id[:8],
+            wf.site_domain,
+            wf.action_name,
+            str(len(wf.steps)),
+            str(wf.replay_count),
+            wf.recorded_at.strftime("%Y-%m-%d %H:%M"),
+        )
+    console.print(table)
+
+
+@workflows_app.command("show")
+def workflows_show(
+    workflow_id: str = typer.Argument(help="Workflow ID (prefix match)"),
+) -> None:
+    """Show details of a recorded workflow."""
+    registry = _get_registry()
+    workflows = registry.list_workflows()
+    match = None
+    for wf in workflows:
+        if wf.id.startswith(workflow_id):
+            match = wf
+            break
+    if not match:
+        console.print(f"[red]Workflow '{workflow_id}' not found[/red]")
+        raise typer.Exit(1)
+    console.print(f"[bold]Workflow {match.id}[/bold]")
+    console.print(f"  Domain: {match.site_domain}")
+    console.print(f"  Action: {match.action_name}")
+    console.print(f"  Recorded: {match.recorded_at}")
+    console.print(f"  Replays: {match.replay_count}")
+    console.print(f"\n[bold]Steps ({len(match.steps)}):[/bold]")
+    for i, step in enumerate(match.steps):
+        desc = step.description or f"{step.action} {step.selector or step.value or ''}"
+        console.print(f"  {i + 1}. {desc}")
+
+
+@workflows_app.command("delete")
+def workflows_delete(
+    workflow_id: str = typer.Argument(help="Workflow ID (prefix match)"),
+) -> None:
+    """Delete a recorded workflow."""
+    registry = _get_registry()
+    workflows = registry.list_workflows()
+    for wf in workflows:
+        if wf.id.startswith(workflow_id):
+            registry.delete_workflow(wf.id)
+            console.print(f"[green]Deleted workflow {wf.id[:8]}[/green]")
+            return
+    console.print(f"[red]Workflow '{workflow_id}' not found[/red]")
+
+
 # --- MCP Commands ---
 
 mcp_app = typer.Typer(help="MCP server management")
@@ -426,6 +733,35 @@ def mcp_serve(
 
     console.print(f"[green]Starting MCP server for {domain}...[/green]")
     subprocess.run([sys.executable, str(server_path)])
+
+
+@mcp_app.command("serve-all")
+def mcp_serve_all() -> None:
+    """Start a unified MCP server for ALL discovered sites."""
+    try:
+        from site2cli.mcp.server import run_unified_mcp_server
+    except ImportError:
+        console.print(
+            "[red]MCP SDK not installed.[/red]"
+            " Install with: pip install site2cli[mcp]"
+        )
+        raise typer.Exit(1)
+
+    registry = _get_registry()
+    sites = registry.list_sites()
+    if not sites:
+        console.print(
+            "[yellow]No sites discovered yet.[/yellow]"
+            " Run `site2cli discover <url>` first."
+        )
+        raise typer.Exit(1)
+
+    console.print(
+        f"[green]Starting unified MCP server"
+        f" with {len(sites)} sites...[/green]",
+        err=True,
+    )
+    _run_async(run_unified_mcp_server(registry))
 
 
 # --- Health Commands ---
@@ -710,6 +1046,60 @@ def init(
             "\n[yellow]No sites discovered yet.[/yellow]"
             " Run `site2cli discover <url>` first."
         )
+
+
+# --- Daemon Commands ---
+
+daemon_app = typer.Typer(help="Persistent browser daemon")
+app.add_typer(daemon_app, name="daemon")
+
+
+@daemon_app.command("start")
+def daemon_start() -> None:
+    """Start the background browser daemon."""
+    from site2cli.daemon.server import DaemonServer
+
+    config = get_config()
+    server = DaemonServer(config.daemon_socket_path)
+    console.print(
+        f"[green]Starting daemon on {config.daemon_socket_path}...[/green]"
+    )
+    _run_async(server.run())
+
+
+@daemon_app.command("stop")
+def daemon_stop() -> None:
+    """Stop the background browser daemon."""
+    from site2cli.daemon.client import DaemonClient
+
+    config = get_config()
+    client = DaemonClient(config.daemon_socket_path)
+    try:
+        result = _run_async(client.send("shutdown", {}))
+        console.print(f"[green]Daemon stopped: {result}[/green]")
+    except Exception as e:
+        console.print(f"[yellow]Daemon not running or error: {e}[/yellow]")
+    # Clean up socket file
+    if config.daemon_socket_path.exists():
+        config.daemon_socket_path.unlink()
+
+
+@daemon_app.command("status")
+def daemon_status() -> None:
+    """Check if the daemon is running."""
+    config = get_config()
+    if not config.daemon_socket_path.exists():
+        console.print("[yellow]Daemon is not running.[/yellow]")
+        return
+    from site2cli.daemon.client import DaemonClient
+
+    client = DaemonClient(config.daemon_socket_path)
+    try:
+        result = _run_async(client.send("list_sessions", {}))
+        sessions = result.get("sessions", [])
+        console.print(f"[green]Daemon is running.[/green] {len(sessions)} active sessions.")
+    except Exception:
+        console.print("[yellow]Daemon socket exists but is not responding.[/yellow]")
 
 
 @app.command()

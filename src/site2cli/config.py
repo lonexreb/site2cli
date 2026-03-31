@@ -47,6 +47,8 @@ class BrowserConfig(BaseModel):
     user_data_dir: str | None = None
     action_retries: int = 2
     retry_delay_ms: int = 1000
+    profile: str | None = None
+    session: str | None = None
 
 
 class Config(BaseModel):
@@ -74,11 +76,25 @@ class Config(BaseModel):
         return self.data_dir / "workflows"
 
     @property
+    def profiles_dir(self) -> Path:
+        return self.data_dir / "profiles"
+
+    @property
+    def daemon_socket_path(self) -> Path:
+        return self.data_dir / "daemon.sock"
+
+    @property
     def config_path(self) -> Path:
         return self.data_dir / "config.yaml"
 
     def ensure_dirs(self) -> None:
-        for d in [self.data_dir, self.specs_dir, self.clients_dir, self.workflows_dir]:
+        for d in [
+            self.data_dir,
+            self.specs_dir,
+            self.clients_dir,
+            self.workflows_dir,
+            self.profiles_dir,
+        ]:
             d.mkdir(parents=True, exist_ok=True)
 
     def save(self) -> None:

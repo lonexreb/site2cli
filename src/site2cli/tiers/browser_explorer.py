@@ -15,8 +15,9 @@ if TYPE_CHECKING:
 class BrowserExplorer:
     """Tier 1 executor: uses LLM to drive browser interactions."""
 
-    def __init__(self) -> None:
+    def __init__(self, registry: object | None = None) -> None:
         self._config = get_config()
+        self._registry = registry  # SiteRegistry for saving workflows
 
     async def explore(self, url: str, goal: str) -> dict:
         """Use LLM-driven browser to accomplish a goal on a website.
@@ -41,7 +42,13 @@ class BrowserExplorer:
         }
 
     async def execute_action(
-        self, url: str, action: str, params: dict | None = None
+        self,
+        url: str,
+        action: str,
+        params: dict | None = None,
+        *,
+        profile: str | None = None,
+        inject_cookies_for: str | None = None,
     ) -> dict:
         """Execute a specific action on a website using browser automation.
 
@@ -49,19 +56,20 @@ class BrowserExplorer:
             url: The URL to navigate to.
             action: The action to perform (e.g., "search flights").
             params: Parameters for the action.
+            profile: Browser profile name to use.
+            inject_cookies_for: Domain to inject stored cookies for.
 
         Returns:
             Dict with the result of the action.
         """
-        from playwright.async_api import async_playwright
+        from site2cli.browser.context import create_browser_context
 
         config = self._config
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=config.browser.headless)
-            context = await browser.new_context(
-                viewport={"width": 1920, "height": 1080},
-            )
-            page = await context.new_page()
+        domain = _extract_domain(url)
+        async with create_browser_context(
+            profile=profile or config.browser.profile,
+            inject_cookies_for=inject_cookies_for or domain,
+        ) as (_browser, _context, page):
             try:
                 await page.goto(url, wait_until="networkidle", timeout=config.browser.timeout_ms)
             except Exception:
@@ -81,7 +89,14 @@ class BrowserExplorer:
                 page, action, params
             )
 
-            await browser.close()
+            # Record workflow from LLM exploration history
+            if self._registry and result.get("history"):
+                self._record_workflow(
+                    domain=domain,
+                    action_name=action,
+                    history=result["history"],
+                )
+
             return result
 
     async def _llm_driven_interaction(
@@ -146,6 +161,7 @@ class BrowserExplorer:
 
             # Get page elements — prefer a11y tree, fall back to CSS queries
             use_a11y = False
+            a11y_nodes = []
             try:
                 from site2cli.browser.a11y import extract_a11y_tree, format_a11y_for_llm
 
@@ -192,8 +208,9 @@ class BrowserExplorer:
             # Ask LLM what to do
             elements_label = "Accessibility tree" if use_a11y else "Interactive elements on page"
             a11y_note = (
-                "\n- Elements are shown as [role] \"name\" with ARIA attributes."
-                " Use the name/role to identify elements for click/fill actions."
+                "\n- Interactive elements are shown as [@N] [role] \"name\"."
+                " You can use click_index/fill_index with the element number N"
+                " for more reliable interaction, or use CSS selectors."
                 if use_a11y
                 else ""
             )
@@ -213,8 +230,12 @@ Previous actions taken:
 {json.dumps(history, indent=2)}
 
 What should I do next? Respond with a JSON object:
-- If an action is needed: {{"action": "click|fill|select|navigate|scroll|wait|press|download", \
-"selector": "CSS selector", "value": "value if filling/pressing key/download URL", "reason": "why"}}
+- If an action is needed: {{"action": "click|fill|select|navigate|scroll|wait|press|download|\
+click_index|fill_index", \
+"selector": "CSS selector", "index": N, "value": "value if filling/pressing key/download URL", \
+"reason": "why"}}
+- Use "click_index" with "index": N to click element [@N] (preferred over CSS selectors)
+- Use "fill_index" with "index": N and "value" to type into element [@N]
 - Use "press" with value like "Enter", "Tab", "Escape" for keyboard actions
 - Use "download" with value as the file URL to download a file
 - Use "scroll" with value as pixels to scroll (default 500)
@@ -338,6 +359,48 @@ Respond with ONLY the JSON object."""
                         })
                     except Exception as e:
                         history.append({"step": step, "error": str(e)})
+            elif action == "click_index":
+                idx = instruction.get("index")
+                if idx is not None and a11y_nodes:
+                    try:
+                        from site2cli.browser.a11y import get_node_by_index
+                        from site2cli.browser.retry import with_retry
+
+                        target = get_node_by_index(a11y_nodes, int(idx))
+                        if target:
+                            await with_retry(
+                                lambda: page.get_by_role(
+                                    target.role, name=target.name
+                                ).first.click(timeout=5000),
+                                retries=config.browser.action_retries,
+                                delay_ms=config.browser.retry_delay_ms,
+                            )
+                            await page.wait_for_load_state("networkidle", timeout=5000)
+                        else:
+                            history.append({"step": step, "error": f"No element at index {idx}"})
+                    except Exception as e:
+                        history.append({"step": step, "error": str(e)})
+            elif action == "fill_index":
+                idx = instruction.get("index")
+                value = instruction.get("value", "")
+                if idx is not None and a11y_nodes:
+                    try:
+                        from site2cli.browser.a11y import get_node_by_index
+                        from site2cli.browser.retry import with_retry
+
+                        target = get_node_by_index(a11y_nodes, int(idx))
+                        if target:
+                            await with_retry(
+                                lambda: page.get_by_role(
+                                    target.role, name=target.name
+                                ).first.fill(value),
+                                retries=config.browser.action_retries,
+                                delay_ms=config.browser.retry_delay_ms,
+                            )
+                        else:
+                            history.append({"step": step, "error": f"No element at index {idx}"})
+                    except Exception as e:
+                        history.append({"step": step, "error": str(e)})
             elif action == "scroll":
                 distance = int(instruction.get("value", "500"))
                 await page.evaluate(f"window.scrollBy(0, {distance})")
@@ -356,6 +419,49 @@ Respond with ONLY the JSON object."""
             "steps_taken": len(history),
             "history": history,
         }
+
+
+    def _record_workflow(
+        self, domain: str, action_name: str, history: list[dict]
+    ) -> None:
+        """Convert LLM exploration history into a RecordedWorkflow and save it."""
+        from site2cli.models import WorkflowStep
+        from site2cli.tiers.cached_workflow import WorkflowRecorder
+
+        recorder = WorkflowRecorder()
+        for entry in history:
+            instruction = entry.get("instruction", {})
+            act = instruction.get("action", "")
+            if act in ("done", "fail", ""):
+                continue
+            selector = instruction.get("selector")
+            value = instruction.get("value")
+            idx = instruction.get("index")
+            description = instruction.get("reason", "")
+
+            # For index-based actions, note the index in description
+            if act in ("click_index", "fill_index") and idx is not None:
+                description = f"{act} [@{idx}]: {description}"
+
+            recorder.add_step(WorkflowStep(
+                action=act.replace("_index", ""),  # normalize to base action
+                selector=selector,
+                value=value,
+                description=description,
+            ))
+
+        if recorder.steps:
+            workflow = recorder.build(domain, action_name)
+            try:
+                self._registry.save_workflow(workflow)
+                # Update action tier to WORKFLOW
+                self._registry.update_action_tier(
+                    domain,
+                    action_name,
+                    __import__("site2cli.models", fromlist=["Tier"]).Tier.WORKFLOW,
+                )
+            except Exception:
+                pass  # Don't fail the action if recording fails
 
 
 def _extract_domain(url: str) -> str:
