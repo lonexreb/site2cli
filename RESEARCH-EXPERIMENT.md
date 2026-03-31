@@ -536,6 +536,46 @@ Integrating webctl-inspired browser automation features (cookie banner dismissal
 
 ---
 
+## Experiment #15: Live Browser-Based Discovery Validation
+
+**Date**: 2026-03-31
+**Status**: Added (pending execution)
+**Script**: `experiments/experiment_15_live_browser_validation.py`
+
+### Hypothesis
+
+The REAL Playwright browser → CDP traffic capture → analyze → spec → client → MCP pipeline works end-to-end against live websites. Previous experiments (8-14) used direct httpx requests, NOT browser-based traffic capture — this experiment closes that gap.
+
+### Setup
+
+5 public websites tested with real browser-based discovery:
+- **JSONPlaceholder** — Fake REST API (homepage loads make API calls)
+- **httpbin.org** — HTTP testing service
+- **Dog CEO** — Dog image API (homepage calls /api/breeds/image/random)
+- **PokeAPI** — Pokemon API
+- **REST Countries** — Country data API
+
+Each site goes through: Playwright launch → CDP traffic interception (12s capture) → TrafficAnalyzer → OpenAPI spec generation → spec validation → Python client generation → client compilation → live client call → MCP server generation → MCP compilation.
+
+### Success Criteria
+- At least 3/5 sites capture API traffic
+- At least 3/5 specs are valid OpenAPI
+- At least 3/5 clients compile
+- At least 3/5 MCP servers compile
+- Total endpoints discovered >= 5
+
+### Requirements
+```bash
+pip install site2cli[browser,llm]
+playwright install chromium
+ANTHROPIC_API_KEY=sk-... python experiments/experiment_15_live_browser_validation.py
+```
+
+### Key Difference from Experiment #8
+Experiment #8 uses synthetic HTTP exchanges (direct httpx calls simulating traffic). Experiment #15 launches a real Chromium browser, navigates to actual websites, captures whatever XHR/Fetch the page makes, and runs the full pipeline on real browser-captured traffic — including cookie banners, redirects, and CORS.
+
+---
+
 ## Experiment #16: Cookies, Profiles, Sessions, Daemon & Unified MCP (2026-03-28)
 
 **Date**: 2026-03-28

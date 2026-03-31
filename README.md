@@ -235,8 +235,9 @@ site2cli has been validated with **7 experiments** across **15+ real public APIs
 | 12 | MCP Validation | 20 tools, 14/14 quality checks, 100% handler coverage |
 | 13 | Spec Accuracy | 80% accuracy vs ground truth |
 | 14 | Resilience | 100% health check accuracy, drift detection works |
+| 15 | Live Browser Discovery | Real Playwright → CDP capture → full pipeline (5 sites) |
 
-**All 7 experiments pass in ~74 seconds.**
+**Experiments 8-14 pass in ~74 seconds.** Experiment 15 requires `site2cli[browser]` + Chromium.
 
 ```python
 # Auto-generated client for JSONPlaceholder — no human code

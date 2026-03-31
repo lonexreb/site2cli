@@ -60,6 +60,7 @@ experiments/
 ├── experiment_12_mcp_validation.py   # Deep MCP server validation
 ├── experiment_13_spec_accuracy.py    # Spec accuracy vs ground truth
 ├── experiment_14_resilience.py       # Health monitoring & resilience
+├── experiment_15_live_browser_validation.py  # Real Playwright browser → CDP capture pipeline
 └── run_all_experiments.py            # Master runner for all experiments
 ```
 
@@ -112,7 +113,7 @@ pytest -v                 # Verbose output
 
 **Total: 306 tests (300 + 6 live), all passing.**
 
-## Live Validation (7 Experiments, All Passing)
+## Live Validation (8 Experiments)
 
 Full pre-launch validation suite: `python experiments/run_all_experiments.py`
 
@@ -125,8 +126,9 @@ Full pre-launch validation suite: `python experiments/run_all_experiments.py`
 | 12 | MCP Validation | 20 tools, 14/14 quality checks, schema-spec match |
 | 13 | Spec Accuracy | 80% accuracy vs ground truth (5 APIs) |
 | 14 | Resilience | 100% health check accuracy, drift detection, bundle integrity |
+| 15 | Live Browser Discovery | Real Playwright browser → CDP capture → full pipeline (5 sites) |
 
-All 7 experiments pass in ~74 seconds.
+Experiments 8-14 pass in ~74 seconds. Experiment 15 requires `site2cli[browser]` + Chromium.
 
 ## Backward Compatibility (webcli → site2cli)
 
