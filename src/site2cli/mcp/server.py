@@ -31,7 +31,10 @@ def _build_tool_registry(
     for site in sites:
         domain_prefix = re.sub(r"[^a-z0-9]", "_", site.domain.split(".")[0])
         for action in site.actions:
-            tool_name = f"{domain_prefix}_{action.name}"
+            # Sanitize tool name — MCP requires [a-zA-Z0-9_-]+ only
+            safe_name = re.sub(r"[^a-z0-9_-]", "_", action.name.lower())
+            safe_name = re.sub(r"_+", "_", safe_name).strip("_")
+            tool_name = f"{domain_prefix}_{safe_name}"
             # Build a basic input schema from the endpoint if available
             properties: dict[str, Any] = {}
             required: list[str] = []

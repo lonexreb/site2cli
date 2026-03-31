@@ -756,10 +756,10 @@ def mcp_serve_all() -> None:
         )
         raise typer.Exit(1)
 
-    console.print(
+    err_console = Console(stderr=True)
+    err_console.print(
         f"[green]Starting unified MCP server"
         f" with {len(sites)} sites...[/green]",
-        err=True,
     )
     _run_async(run_unified_mcp_server(registry))
 

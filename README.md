@@ -133,6 +133,28 @@ site2cli --mcp
 # or: site2cli mcp serve-all
 ```
 
+### Use with Claude Code / Claude Desktop
+
+```bash
+# Add site2cli as an MCP server for Claude Code
+claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp
+
+# Or add to Claude Desktop's config (~/.claude/claude_desktop_config.json):
+# {
+#   "mcpServers": {
+#     "site2cli": {
+#       "command": "uvx",
+#       "args": ["--from", "site2cli[mcp]", "site2cli", "--mcp"]
+#     }
+#   }
+# }
+```
+
+Once configured, Claude can call any discovered site's API as a tool:
+> "Use site2cli to get data about the Pokemon Ditto"
+
+**Note:** You need to run `site2cli discover <url>` first to populate the registry. The MCP server exposes all discovered sites as tools.
+
 ## As a Python Library
 
 ```python
