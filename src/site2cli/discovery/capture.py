@@ -189,8 +189,16 @@ class TrafficCapture:
                 lambda p: asyncio.ensure_future(on_response_received(p)),
             )
 
-            # Navigate
-            await page.goto(url, wait_until="networkidle", timeout=config.browser.timeout_ms)
+            # Navigate (fall back to domcontentloaded if networkidle times out)
+            try:
+                await page.goto(
+                    url, wait_until="networkidle", timeout=config.browser.timeout_ms
+                )
+            except Exception:
+                await page.goto(
+                    url, wait_until="domcontentloaded", timeout=config.browser.timeout_ms
+                )
+                await page.wait_for_timeout(3000)
 
             # Dismiss cookie banners before interaction
             try:
@@ -252,6 +260,7 @@ class TrafficCapture:
 
             # Filter to API-like links on the target domain
             api_links = []
+            rest_links = []
             for link in links:
                 parsed = urlparse(link)
                 host = (parsed.hostname or "").replace("www.", "")
@@ -260,8 +269,10 @@ class TrafficCapture:
                     continue
                 if not self._should_capture(link):
                     continue
-                path = parsed.path.lower()
-                # Match paths like /posts, /users, /api/v2/pokemon, /v3.1/all
+                path = parsed.path.lower().rstrip("/")
+                if not path or path == urlparse(page.url).path.lower().rstrip("/"):
+                    continue  # skip current page
+                # Priority 1: paths with API indicators
                 if any(
                     ind in path
                     for ind in [
@@ -270,9 +281,18 @@ class TrafficCapture:
                     ]
                 ):
                     api_links.append(link)
+                # Priority 2: clean REST-like paths (e.g., /posts, /users)
+                # Single-segment, no extension, no query — likely REST resources
+                elif (
+                    path.count("/") == 1
+                    and "." not in path.split("/")[-1]
+                    and not parsed.query
+                ):
+                    rest_links.append(link)
 
-            # Probe up to 5 API-like links
-            for link in api_links[:5]:
+            # Probe API-indicator links first, then REST-like paths
+            probe_links = api_links[:5] or rest_links[:5]
+            for link in probe_links:
                 try:
                     await page.goto(
                         link,
