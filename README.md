@@ -104,6 +104,10 @@ site2cli discover kayak.com --action "search flights"
 
 ### Use the Generated Interface
 
+<p align="center">
+  <img src="assets/discovery.gif" alt="Discovery & Run demo" width="100%">
+</p>
+
 ```bash
 # CLI
 site2cli run kayak.com search_flights from=SFO to=JFK date=2025-04-01
@@ -114,6 +118,10 @@ site2cli mcp serve kayak.com
 ```
 
 ### Manage Browser Auth & Sessions
+
+<p align="center">
+  <img src="assets/cookies.gif" alt="Cookie management demo" width="100%">
+</p>
 
 ```bash
 # Import a Chrome profile for authenticated discovery
@@ -138,6 +146,10 @@ site2cli --mcp
 ```
 
 ### Use with Claude Code / Claude Desktop
+
+<p align="center">
+  <img src="assets/mcp.gif" alt="MCP integration demo" width="100%">
+</p>
 
 ```bash
 # Add site2cli as an MCP server for Claude Code
@@ -187,6 +199,14 @@ From a single discovery session, site2cli produces:
 | **Python Client** | Typed httpx client with methods for each endpoint |
 | **CLI Commands** | Typer commands you can run from terminal |
 | **MCP Server** | Tools that AI agents (Claude, etc.) can call directly |
+
+## Community Spec Sharing
+
+Share and reuse discovered API specs across teams:
+
+<p align="center">
+  <img src="assets/community.gif" alt="Community export/import demo" width="100%">
+</p>
 
 ## Architecture
 
@@ -313,6 +333,12 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 | `test_daemon.py` | 12 | Daemon server lifecycle, JSON-RPC over Unix socket |
 | `test_session.py` | 10 | Named browser session persistence & reuse |
 | `test_integration_live.py` | 6 | Live tests against JSONPlaceholder + httpbin |
+
+## CLI Overview
+
+<p align="center">
+  <img src="assets/help.gif" alt="CLI help overview" width="100%">
+</p>
 
 ## Development
 
