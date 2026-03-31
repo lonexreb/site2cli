@@ -56,20 +56,21 @@ graph TD
 
 ## Comparison
 
-| Feature | browser-use | Hand-built CLIs | CLI-Anything | webctl | **site2cli** |
+| Feature | browser-use 2.0 | Hand-built CLIs | CLI-Anything | Stagehand v3 | **site2cli** |
 |---|---|---|---|---|---|
 | Works on any site | Yes | No | Yes | Yes | Yes |
-| Structured output | No | Yes | Yes | JSON/a11y/md | Yes |
+| Structured output | No | Yes | Yes | Yes | Yes |
 | Auto-discovery | No | No | No | No | **Yes** |
-| MCP server generation | No | No | No | No | **Yes** |
-| Progressive optimization | No | N/A | No | No | **Yes** |
-| Cookie banner handling | No | N/A | No | **Yes** | **Yes** |
-| Auth page detection | No | N/A | No | **Yes** | **Yes** |
-| Self-healing | No | No | No | No | **Yes** |
+| MCP server generation | Acts as MCP | No | No | Yes | **Generates MCP** |
+| Progressive optimization | No | N/A | No | Auto-cache | **Yes (3 tiers)** |
+| Cookie banner handling | No | N/A | No | No | **Yes** |
+| Auth page detection | No | N/A | No | No | **Yes** |
+| Self-healing | No | No | No | Yes | **Yes** |
 | No browser needed (after discovery) | No | Yes | No | No | **Yes** |
-| Agent init/config | No | No | No | **Yes** | **Yes** |
-| Session persistence | No | No | No | No | **Yes** |
-| Cookie management | No | No | No | No | **Yes** |
+| Session persistence | **Yes** | No | No | No | **Yes** |
+| Cookie management | **Yes** | No | No | No | **Yes** |
+| Daemon mode | **Yes** (~50ms) | No | No | No | **Yes** |
+| CAPTCHA solving | **Yes** | No | No | No | Detection only |
 | Community spec sharing | No | No | No | No | **Yes** |
 
 ## Quick Start
