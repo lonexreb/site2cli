@@ -50,12 +50,24 @@ class TrafficCapture:
     def _is_api_like(self, url: str, content_type: str | None) -> bool:
         """Check if a request looks like an API call."""
         if content_type and any(
-            t in content_type for t in ["application/json", "application/xml", "text/xml"]
+            t in content_type
+            for t in [
+                "application/json",
+                "application/xml",
+                "text/xml",
+                "application/ld+json",
+                "application/hal+json",
+                "application/vnd.",
+            ]
         ):
             return True
         parsed = urlparse(url)
-        api_indicators = ["/api/", "/v1/", "/v2/", "/v3/", "/graphql", "/rest/", "/ajax/"]
-        return any(ind in parsed.path.lower() for ind in api_indicators)
+        path = parsed.path.lower()
+        api_indicators = [
+            "/api/", "/v1/", "/v1.", "/v2/", "/v2.", "/v3/", "/v3.",
+            "/graphql", "/rest/", "/ajax/", "/data/", "/feed/",
+        ]
+        return any(ind in path for ind in api_indicators)
 
     def _ensure_playwright(self):
         try:
@@ -207,9 +219,71 @@ class TrafficCapture:
                 await interaction_callback(page)
             else:
                 # Wait for dynamic content and API calls
-                await page.wait_for_timeout(min(duration_seconds * 1000, config.browser.timeout_ms))
+                await page.wait_for_timeout(
+                    min(duration_seconds * 1000, config.browser.timeout_ms)
+                )
+
+            # Auto-probe: if no API exchanges captured, discover and fetch
+            # API-like links from the page (handles static doc homepages)
+            if not self.exchanges:
+                await self._auto_probe_links(page)
 
         return self.exchanges
+
+    async def _auto_probe_links(self, page) -> None:
+        """Discover API-like links on the page and fetch them to capture traffic.
+
+        When a homepage is static documentation (no XHR on load), this finds
+        links that point to API endpoints and navigates to them.
+        """
+        try:
+            links = await page.evaluate("""() => {
+                const anchors = document.querySelectorAll('a[href]');
+                const seen = new Set();
+                const results = [];
+                for (const a of anchors) {
+                    const href = a.href;
+                    if (!href || seen.has(href)) continue;
+                    seen.add(href);
+                    results.push(href);
+                }
+                return results;
+            }""")
+
+            # Filter to API-like links on the target domain
+            api_links = []
+            for link in links:
+                parsed = urlparse(link)
+                host = (parsed.hostname or "").replace("www.", "")
+                target = (self.target_domain or "").replace("www.", "")
+                if target and target not in host:
+                    continue
+                if not self._should_capture(link):
+                    continue
+                path = parsed.path.lower()
+                # Match paths like /posts, /users, /api/v2/pokemon, /v3.1/all
+                if any(
+                    ind in path
+                    for ind in [
+                        "/api/", "/v1/", "/v1.", "/v2/", "/v2.", "/v3/", "/v3.",
+                        "/graphql", "/rest/", "/data/", "/feed/",
+                    ]
+                ):
+                    api_links.append(link)
+
+            # Probe up to 5 API-like links
+            for link in api_links[:5]:
+                try:
+                    await page.goto(
+                        link,
+                        wait_until="networkidle",
+                        timeout=10000,
+                    )
+                    await page.wait_for_timeout(500)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def get_api_exchanges(self) -> list[CapturedExchange]:
         """Return only exchanges that look like API calls."""

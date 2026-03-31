@@ -114,15 +114,23 @@ async def detect_auth_page(page: Page) -> AuthDetectionResult:
                 .map(h => h.textContent?.trim().toLowerCase() || '')
                 .filter(t => t.length > 0);
 
-            // CAPTCHA iframes
+            // CAPTCHA iframes — only flag VISIBLE ones (invisible reCAPTCHA
+            // scoring iframes are hidden 0x0 and should not block discovery)
             const iframes = document.querySelectorAll('iframe');
             for (const iframe of iframes) {
                 const src = (iframe.src || '').toLowerCase();
                 if (src.includes('recaptcha') || src.includes('hcaptcha')
-                    || src.includes('turnstile') || src.includes('captcha')
+                    || src.includes('turnstile')
                     || src.includes('challenge-platform')) {
-                    result.hasCaptchaIframe = true;
-                    break;
+                    const rect = iframe.getBoundingClientRect();
+                    const style = window.getComputedStyle(iframe);
+                    const isVisible = rect.width > 10 && rect.height > 10
+                        && style.display !== 'none'
+                        && style.visibility !== 'hidden';
+                    if (isVisible) {
+                        result.hasCaptchaIframe = true;
+                        break;
+                    }
                 }
             }
 
