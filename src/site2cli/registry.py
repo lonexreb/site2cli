@@ -9,6 +9,7 @@ from pathlib import Path
 from site2cli.models import (
     AuthType,
     HealthStatus,
+    OrchestrationPipeline,
     RecordedWorkflow,
     SiteAction,
     SiteEntry,
@@ -73,6 +74,17 @@ class SiteRegistry:
                 replay_count INTEGER DEFAULT 0,
                 success_count INTEGER DEFAULT 0,
                 FOREIGN KEY (site_domain) REFERENCES sites(domain)
+            );
+
+            CREATE TABLE IF NOT EXISTS orchestrations (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                steps_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                run_count INTEGER DEFAULT 0,
+                last_run TEXT
             );
         """)
 
@@ -277,6 +289,90 @@ class SiteRegistry:
         )
         self.conn.commit()
         return cursor.rowcount > 0
+
+    # --- Orchestration CRUD ---
+
+    def save_orchestration(self, pipeline: OrchestrationPipeline) -> None:
+        """Save an orchestration pipeline."""
+        import json as _json
+
+        steps_json = _json.dumps(
+            [s.model_dump(mode="json") for s in pipeline.steps]
+        )
+        self.conn.execute(
+            """INSERT OR REPLACE INTO orchestrations
+               (id, name, description, steps_json, created_at, updated_at,
+                run_count, last_run)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                pipeline.id,
+                pipeline.name,
+                pipeline.description,
+                steps_json,
+                pipeline.created_at.isoformat(),
+                pipeline.updated_at.isoformat(),
+                pipeline.run_count,
+                pipeline.last_run.isoformat() if pipeline.last_run else None,
+            ),
+        )
+        self.conn.commit()
+
+    def get_orchestration(self, pipeline_id: str) -> OrchestrationPipeline | None:
+        """Get an orchestration by ID."""
+        import json as _json
+
+        from site2cli.models import OrchestrationStep
+
+        row = self.conn.execute(
+            "SELECT * FROM orchestrations WHERE id = ?", (pipeline_id,)
+        ).fetchone()
+        if not row:
+            return None
+        steps = [
+            OrchestrationStep.model_validate(s)
+            for s in _json.loads(row["steps_json"])
+        ]
+        return OrchestrationPipeline(
+            id=row["id"],
+            name=row["name"],
+            description=row["description"],
+            steps=steps,
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+            run_count=row["run_count"],
+            last_run=(
+                datetime.fromisoformat(row["last_run"]) if row["last_run"] else None
+            ),
+        )
+
+    def list_orchestrations(self) -> list[OrchestrationPipeline]:
+        """List all orchestration pipelines."""
+        rows = self.conn.execute(
+            "SELECT id FROM orchestrations ORDER BY name"
+        ).fetchall()
+        pipelines = []
+        for row in rows:
+            p = self.get_orchestration(row["id"])
+            if p:
+                pipelines.append(p)
+        return pipelines
+
+    def delete_orchestration(self, pipeline_id: str) -> bool:
+        """Delete an orchestration by ID."""
+        cursor = self.conn.execute(
+            "DELETE FROM orchestrations WHERE id = ?", (pipeline_id,)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def record_orchestration_run(self, pipeline_id: str) -> None:
+        """Increment the run count and update last_run timestamp."""
+        self.conn.execute(
+            "UPDATE orchestrations SET run_count = run_count + 1, last_run = ?"
+            " WHERE id = ?",
+            (datetime.utcnow().isoformat(), pipeline_id),
+        )
+        self.conn.commit()
 
     def close(self) -> None:
         if self._conn:

@@ -1,3 +1,3 @@
 """site2cli: Turn any website into a CLI/API for AI agents."""
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"

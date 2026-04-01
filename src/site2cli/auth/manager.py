@@ -8,7 +8,7 @@ import keyring
 
 from site2cli.auth.cookies import CookieManager
 from site2cli.config import get_config
-from site2cli.models import AuthType
+from site2cli.models import AuthType, OAuthTokenData
 
 KEYRING_SERVICE = "site2cli"
 _OLD_KEYRING_SERVICE = "webcli"
@@ -117,6 +117,100 @@ class AuthManager:
             pass
         return None
 
+    # --- OAuth token management ---
+
+    def store_oauth_token(self, domain: str, token_data: OAuthTokenData) -> None:
+        """Store OAuth tokens (access in keyring, metadata in JSON)."""
+
+        keyring.set_password(
+            KEYRING_SERVICE, f"{domain}:token:bearer", token_data.access_token
+        )
+        if token_data.refresh_token:
+            keyring.set_password(
+                KEYRING_SERVICE, f"{domain}:token:refresh", token_data.refresh_token
+            )
+        # Metadata to JSON
+        import json
+
+        meta = {
+            "expires_at": token_data.expires_at,
+            "scope": token_data.scope,
+            "provider_name": token_data.provider_name,
+            "token_type": token_data.token_type,
+        }
+        meta_path = self._credentials_dir / f"{domain}.oauth_meta.json"
+        with open(meta_path, "w") as f:
+            json.dump(meta, f, indent=2)
+
+    def get_oauth_token(self, domain: str) -> OAuthTokenData | None:
+        """Reconstruct OAuthTokenData from keyring + metadata."""
+        import json
+
+        from site2cli.models import OAuthTokenData
+
+        access_token = self.get_token(domain, "bearer")
+        if not access_token:
+            return None
+        refresh_token = self.get_token(domain, "refresh")
+        meta_path = self._credentials_dir / f"{domain}.oauth_meta.json"
+        meta: dict = {}
+        if meta_path.exists():
+            with open(meta_path) as f:
+                meta = json.load(f)
+        return OAuthTokenData(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type=meta.get("token_type", "Bearer"),
+            expires_at=meta.get("expires_at"),
+            scope=meta.get("scope"),
+            provider_name=meta.get("provider_name", ""),
+        )
+
+    def is_token_expired(self, domain: str) -> bool:
+        """Check if the stored OAuth token has expired (with 60s buffer)."""
+        import time
+
+        token_data = self.get_oauth_token(domain)
+        if not token_data or token_data.expires_at is None:
+            return False
+        return time.time() >= (token_data.expires_at - 60)
+
+    async def ensure_valid_token(self, domain: str) -> str | None:
+        """Return a valid access token, refreshing if expired."""
+        token_data = self.get_oauth_token(domain)
+        if not token_data:
+            return None
+        if not self.is_token_expired(domain):
+            return token_data.access_token
+        # Try refresh
+        if token_data.refresh_token and token_data.provider_name:
+            try:
+                from site2cli.auth.device_flow import DeviceFlowHandler
+                from site2cli.auth.providers import (
+                    load_custom_provider,
+                )
+
+                provider = load_custom_provider(domain)
+                if provider:
+                    handler = DeviceFlowHandler(provider)
+                    new_token = await handler.refresh_token(token_data.refresh_token)
+                    new_token.provider_name = token_data.provider_name
+                    self.store_oauth_token(domain, new_token)
+                    return new_token.access_token
+            except Exception:
+                pass
+        return token_data.access_token  # return expired token as fallback
+
+    async def get_auth_headers_async(
+        self, domain: str, auth_type: AuthType
+    ) -> dict[str, str]:
+        """Async auth headers with automatic OAuth token refresh."""
+        if auth_type == AuthType.OAUTH:
+            token = await self.ensure_valid_token(domain)
+            if token:
+                return {"Authorization": f"Bearer {token}"}
+        return self.get_auth_headers(domain, auth_type)
+
     def clear_auth(self, domain: str) -> None:
         """Remove all stored credentials for a domain."""
         for suffix in ["api_key", "token:bearer", "token:refresh"]:
@@ -127,3 +221,8 @@ class AuthManager:
         cookie_file = self._credentials_dir / f"{domain}.cookies.json"
         if cookie_file.exists():
             cookie_file.unlink()
+        # Clean up OAuth metadata
+        for pattern in [f"{domain}.oauth_meta.json", f"{domain}.oauth.json"]:
+            meta_file = self._credentials_dir / pattern
+            if meta_file.exists():
+                meta_file.unlink()

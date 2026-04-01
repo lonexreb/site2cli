@@ -185,3 +185,99 @@ class MCPToolSchema(BaseModel):
     site_domain: str
     action_name: str
     tier: Tier
+
+
+# --- OAuth models ---
+
+
+class OAuthProviderConfig(BaseModel):
+    """Configuration for an OAuth device flow provider."""
+
+    name: str  # e.g., "github", "google", "custom"
+    client_id: str
+    device_authorization_endpoint: str
+    token_endpoint: str
+    scopes: list[str] = Field(default_factory=list)
+    audience: str | None = None
+
+
+class OAuthTokenData(BaseModel):
+    """Stored OAuth token data with expiry tracking."""
+
+    access_token: str
+    refresh_token: str | None = None
+    token_type: str = "Bearer"
+    expires_at: float | None = None  # Unix timestamp
+    scope: str | None = None
+    provider_name: str = ""
+
+
+class DeviceCodeResponse(BaseModel):
+    """Response from device authorization endpoint (RFC 8628 Section 3.2)."""
+
+    device_code: str
+    user_code: str
+    verification_uri: str
+    verification_uri_complete: str | None = None
+    expires_in: int = 900
+    interval: int = 5
+
+
+# --- Orchestration models ---
+
+
+class DataMapping(BaseModel):
+    """Maps output from a previous step to input of the next step."""
+
+    source_path: str  # e.g., "$result.data[0].id" or "$steps.step1.result.price"
+    target_param: str  # Parameter name in the next step
+
+
+class OrchestrationStep(BaseModel):
+    """A single step in a multi-site orchestration pipeline."""
+
+    step_id: str
+    domain: str
+    action: str
+    params: dict = Field(default_factory=dict)
+    data_mappings: list[DataMapping] = Field(default_factory=list)
+    description: str = ""
+    on_error: str = "fail"  # "fail", "skip", "retry"
+    retries: int = 0
+    condition: str | None = None
+
+
+class OrchestrationPipeline(BaseModel):
+    """A complete multi-site orchestration definition."""
+
+    id: str
+    name: str
+    description: str = ""
+    steps: list[OrchestrationStep] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    run_count: int = 0
+    last_run: datetime | None = None
+
+
+class StepResult(BaseModel):
+    """Result of executing a single orchestration step."""
+
+    step_id: str
+    domain: str
+    action: str
+    success: bool
+    result: dict = Field(default_factory=dict)
+    error: str | None = None
+    duration_ms: float = 0.0
+
+
+class OrchestrationResult(BaseModel):
+    """Result of executing a complete orchestration pipeline."""
+
+    pipeline_id: str
+    pipeline_name: str
+    success: bool
+    step_results: list[StepResult] = Field(default_factory=list)
+    total_duration_ms: float = 0.0
+    started_at: datetime = Field(default_factory=datetime.utcnow)
