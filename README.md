@@ -16,7 +16,7 @@
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/v/site2cli" alt="PyPI"></a>
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/pyversions/site2cli" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/lonexreb/site2cli" alt="License"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-417_passing-brightgreen" alt="Tests"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-500_passing-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -140,6 +140,55 @@ site2cli scrape https://example.com --main-content
 site2cli scrape https://example.com --format html -o output.html
 ```
 
+### Crawl an Entire Website
+
+```bash
+# Crawl a docs site to markdown
+site2cli crawl https://docs.example.com -d 3 -n 100
+
+# Stream pages as JSONL (great for piping)
+site2cli crawl https://example.com --format jsonl --stream
+
+# Generate a sitemap (URLs only, no content)
+site2cli crawl https://example.com --sitemap
+
+# Save all pages to a directory
+site2cli crawl https://example.com -o output/
+
+# Resume a previous crawl
+site2cli crawl https://example.com --resume <job-id>
+```
+
+### Monitor Pages for Changes
+
+```bash
+# One-shot: compare against last snapshot
+site2cli monitor https://example.com/pricing
+
+# Continuous polling every 5 minutes
+site2cli monitor https://example.com/api --interval 300
+
+# Get notified via webhook on change
+site2cli monitor https://example.com --webhook https://hooks.slack.com/xxx
+
+# List all watches, show history
+site2cli monitor --list
+site2cli monitor --history <watch-id>
+```
+
+### Capture Screenshots
+
+```bash
+# Full-page screenshot
+site2cli screenshot https://example.com -o page.png
+
+# Capture a specific element
+site2cli screenshot https://example.com --selector ".pricing-table"
+
+# Viewport-only JPEG with quality
+site2cli screenshot https://example.com --viewport --format jpeg --quality 80
+```
+
 ### Use a Proxy
 
 ```bash
@@ -225,6 +274,9 @@ site2cli --mcp
 | No browser needed (after discovery) | No | N/A | No | No | **Yes** |
 | Session persistence | **Yes** | No | No | No | **Yes** |
 | Daemon mode | **Yes** (~50ms) | No | No | No | **Yes** |
+| Full site crawling | No | **Yes** | No | No | **Yes** |
+| Change detection/monitoring | No | **Yes ($)** | No | No | **Yes (free)** |
+| Screenshot capture | No | Yes | No | Yes | **Yes** |
 | Community spec sharing | No | No | No | No | **Yes** |
 
 ## How It Works
@@ -284,7 +336,17 @@ mcp_code = generate_mcp_server_code(site, spec)
 
 ---
 
-## What's New in v0.5.0
+## What's New in v0.6.0
+
+- **`crawl` command** — Full site crawling with BFS, configurable depth/max-pages, robots.txt respect, resume support, streaming JSONL output, and sitemap generation
+- **`monitor` command** — Change detection with content diffing, one-shot and polling modes, webhook notifications, snapshot history tracking
+- **`screenshot` command** — Full-page and element screenshots via Playwright, PNG/JPEG, viewport control, wait conditions
+- **4 new SQLite tables** — crawl_jobs, crawl_pages, monitor_watches, monitor_snapshots
+- **CrawlConfig + MonitorConfig** — Configurable crawl delay, concurrency, user agent, snapshot history
+- **500 tests** (up from 417), all passing
+
+<details>
+<summary>v0.5.0</summary>
 
 - **`extract` command** — LLM-powered structured data extraction with JSON Schema validation, Pydantic model support, and batch processing
 - **`scrape` command** — Web scraping with HTML-to-markdown/text/html conversion and main content extraction
@@ -292,6 +354,8 @@ mcp_code = generate_mcp_server_code(site, spec)
 - **`--format` flag on `run`** — Output results as json, markdown, or text
 - **New `content` extra** — `pip install site2cli[content]` for HTML conversion
 - **417 tests** (up from 357), all passing
+
+</details>
 
 <details>
 <summary>v0.4.0</summary>
@@ -422,7 +486,7 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 <details>
 <summary><h2>Testing (417 tests)</h2></summary>
 
-**417 tests** (411 unit/integration + 6 live), all passing on Python 3.10+.
+**500 tests** (494 unit/integration + 6 live), all passing on Python 3.10+.
 
 | Test File | Tests | Coverage Area |
 |---|---|---|
@@ -460,6 +524,10 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 | `test_spec_generator.py` | 6 | OpenAPI spec generation and persistence |
 | `test_community.py` | 6 | Export/import roundtrip, community listing |
 | `test_integration_live.py` | 6 | Live tests against JSONPlaceholder + httpbin |
+| `test_crawl.py` | 35 | Link extraction, BFS crawler, dedup, resume, formats |
+| `test_crawl_robots.py` | 12 | robots.txt parsing, allow/disallow, sitemaps |
+| `test_monitor.py` | 41 | Diff computation, watcher, webhook, registry CRUD |
+| `test_screenshot.py` | 8 | Screenshot model, CLI help, formats |
 | `test_client_generator.py` | 4 | Python client code generation |
 
 </details>
@@ -533,9 +601,14 @@ ruff check src/ tests/
 - [x] Structured data extraction (`extract` command)
 - [x] Web scraping with content conversion (`scrape` command)
 - [x] Proxy support (Playwright + httpx)
+- [x] Full site crawling (`crawl` command)
+- [x] Change detection and monitoring (`monitor` command)
+- [x] Screenshot capture (`screenshot` command)
+- [ ] RAG-optimized output (chunked JSONL for vector DBs)
+- [ ] Web search + extract (`search` command)
+- [ ] PDF parsing
 - [ ] Trained endpoint classifier (replace heuristics)
 - [ ] WebSocket traffic capture
-- [ ] Streaming response support
 
 ## License
 

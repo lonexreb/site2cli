@@ -35,8 +35,17 @@ src/site2cli/
 │   └── agent_config.py # Agent config generation (Claude MCP, generic)
 ├── content/
 │   └── converter.py    # HTML to markdown/text conversion, main content extraction
+├── crawl/
+│   ├── crawler.py      # Async BFS site crawler with resume and streaming
+│   ├── links.py        # Link extraction and normalization from HTML
+│   └── robots.py       # robots.txt parser and URL filtering
 ├── extract/
 │   └── extractor.py    # LLM-powered structured extraction with schema validation
+├── monitor/
+│   ├── watcher.py      # Change detection with snapshot comparison and webhooks
+│   └── differ.py       # Line-level diff engine (stdlib difflib)
+├── screenshot/
+│   └── capture.py      # Full-page and element screenshots via Playwright
 ├── auth/
 │   ├── manager.py      # Auth flow management (Playwright cookie format)
 │   ├── cookies.py      # Cookie CRUD, import/export (Playwright-compatible)
@@ -86,7 +95,7 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 411 unit/integration tests (no network)
+pytest                    # 494 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
@@ -127,8 +136,12 @@ pytest -v                 # Verbose output
 - `test_device_flow.py` — OAuth device code request, polling, token refresh (14 tests)
 - `test_orchestrator.py` — Pipeline execution, error policies, step result tracking (12 tests)
 - `test_providers.py` — OAuth provider configs (GitHub, Google, Microsoft) (8 tests)
+- `test_crawl.py` — Link extraction, BFS crawler, dedup, resume, formats (35 tests)
+- `test_crawl_robots.py` — robots.txt parsing, allow/disallow, sitemaps (12 tests)
+- `test_monitor.py` — Diff computation, watcher, webhook, registry CRUD (41 tests)
+- `test_screenshot.py` — Screenshot model, CLI help, formats (8 tests)
 
-**Total: 417 tests (411 + 6 live), all passing.**
+**Total: 500 tests (494 + 6 live), all passing.**
 
 ## Live Validation (8 Experiments)
 
