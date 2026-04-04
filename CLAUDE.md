@@ -33,10 +33,16 @@ src/site2cli/
 │   ├── cli_gen.py      # Dynamic CLI command generation
 │   ├── mcp_gen.py      # MCP server generation
 │   └── agent_config.py # Agent config generation (Claude MCP, generic)
+├── content/
+│   └── converter.py    # HTML to markdown/text conversion, main content extraction
+├── extract/
+│   └── extractor.py    # LLM-powered structured extraction with schema validation
 ├── auth/
 │   ├── manager.py      # Auth flow management (Playwright cookie format)
 │   ├── cookies.py      # Cookie CRUD, import/export (Playwright-compatible)
-│   └── profiles.py     # Chrome/Firefox profile detection & import
+│   ├── profiles.py     # Chrome/Firefox profile detection & import
+│   ├── device_flow.py  # OAuth device flow (RFC 8628)
+│   └── providers.py    # Pre-configured OAuth providers (GitHub, Google, Microsoft)
 ├── tiers/
 │   ├── browser_explorer.py  # Tier 1: LLM-driven browser
 │   ├── cached_workflow.py   # Tier 2: Recorded workflow replay
@@ -46,6 +52,10 @@ src/site2cli/
 │   └── client.py       # Daemon client for CLI commands
 ├── mcp/
 │   └── server.py       # Unified MCP server for ALL discovered sites
+├── orchestration/
+│   ├── data_flow.py    # JSONPath-like data extraction between pipeline steps
+│   ├── loader.py       # YAML/JSON pipeline loading
+│   └── orchestrator.py # Sequential pipeline executor with error policies
 ├── health/
 │   ├── monitor.py      # API health checking
 │   └── self_heal.py    # LLM-powered breakage repair
@@ -76,7 +86,7 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 300 unit/integration tests (no network)
+pytest                    # 411 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
@@ -110,8 +120,15 @@ pytest -v                 # Verbose output
 - `test_profiles.py` — Chrome/Firefox profile detection, import (12 tests)
 - `test_daemon.py` — Daemon server lifecycle, JSON-RPC protocol (12 tests)
 - `test_session.py` — Named session persistence and reuse (10 tests)
+- `test_content_converter.py` — HTML-to-markdown/text conversion, main content extraction (21 tests)
+- `test_extract.py` — Schema loading, validation, extraction prompt building (26 tests)
+- `test_proxy.py` — ProxyConfig: URL building, Playwright/httpx formats, auth (13 tests)
+- `test_data_flow.py` — JSONPath extraction, data flow between pipeline steps (17 tests)
+- `test_device_flow.py` — OAuth device code request, polling, token refresh (14 tests)
+- `test_orchestrator.py` — Pipeline execution, error policies, step result tracking (12 tests)
+- `test_providers.py` — OAuth provider configs (GitHub, Google, Microsoft) (8 tests)
 
-**Total: 306 tests (300 + 6 live), all passing.**
+**Total: 417 tests (411 + 6 live), all passing.**
 
 ## Live Validation (8 Experiments)
 
@@ -143,7 +160,8 @@ Heavy deps are optional to keep base install lightweight:
 - `site2cli[browser]` — Playwright, browser-cookie3
 - `site2cli[llm]` — Anthropic SDK
 - `site2cli[mcp]` — MCP Python SDK
-- `site2cli[all]` — Everything
+- `site2cli[content]` — markdownify for HTML conversion
+- `site2cli[all]` — Everything (browser, llm, mcp, content)
 - `site2cli[dev]` — All + pytest, ruff, mypy
 
 ## Bug Fixes

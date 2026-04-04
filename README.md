@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="assets/banner.jpg" alt="site2cli" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/banner.jpg" alt="site2cli" width="100%">
 </p>
 
 <p align="center">
-  <img src="assets/discover_pokeapi.gif" alt="site2cli: discover → run → real API data" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/discover_pokeapi.gif" alt="site2cli: discover → run → real API data" width="100%">
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/v/site2cli" alt="PyPI"></a>
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/pyversions/site2cli" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/lonexreb/site2cli" alt="License"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-306_passing-brightgreen" alt="Tests"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-417_passing-brightgreen" alt="Tests"></a>
 </p>
 
 ---
@@ -90,6 +90,7 @@ pip install site2cli[all]
 pip install site2cli[browser]   # Playwright for traffic capture
 pip install site2cli[llm]       # Claude API for smart analysis
 pip install site2cli[mcp]       # MCP server generation
+pip install site2cli[content]   # HTML-to-markdown conversion
 ```
 
 ### Discover a Site's API
@@ -105,7 +106,7 @@ site2cli discover kayak.com --action "search flights"
 ### Use the Generated Interface
 
 <p align="center">
-  <img src="assets/discover_httpbin.gif" alt="httpbin discovery demo" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/discover_httpbin.gif" alt="httpbin discovery demo" width="100%">
 </p>
 
 ```bash
@@ -120,7 +121,7 @@ site2cli mcp serve kayak.com
 ### Manage Browser Auth & Sessions
 
 <p align="center">
-  <img src="assets/cookies.gif" alt="Cookie management demo" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/cookies.gif" alt="Cookie management demo" width="100%">
 </p>
 
 ```bash
@@ -145,10 +146,51 @@ site2cli --mcp
 # or: site2cli mcp serve-all
 ```
 
+### Extract Structured Data
+
+```bash
+# Extract data using natural language
+site2cli extract https://example.com -p "Extract the page title and all links"
+
+# Extract with JSON Schema validation
+site2cli extract https://news.ycombinator.com -s '{"type":"object","properties":{"stories":{"type":"array"}}}'
+
+# Batch extraction from multiple URLs
+site2cli extract https://example.com -u https://example.org -p "Get the page title"
+
+# Save results to file
+site2cli extract https://example.com -p "Extract all headings" -o results.json
+```
+
+### Scrape a Web Page
+
+```bash
+# Convert page to markdown (default)
+site2cli scrape https://example.com
+
+# Convert to plain text
+site2cli scrape https://example.com --format text
+
+# Extract just the main content (skip nav/footer/sidebar)
+site2cli scrape https://example.com --main-content
+
+# Save raw HTML of main content
+site2cli scrape https://example.com --format html -o output.html
+```
+
+### Use a Proxy
+
+```bash
+# Any command supports --proxy
+site2cli discover example.com --proxy http://proxy:8080
+site2cli extract https://example.com -p "titles" --proxy socks5://proxy:1080
+site2cli scrape https://example.com --proxy http://user:pass@proxy:8080
+```
+
 ### Use with Claude Code / Claude Desktop
 
 <p align="center">
-  <img src="assets/mcp.gif" alt="MCP integration demo" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/mcp.gif" alt="MCP integration demo" width="100%">
 </p>
 
 ```bash
@@ -205,7 +247,7 @@ From a single discovery session, site2cli produces:
 Static homepage with no XHR? site2cli auto-discovers and probes REST-like links:
 
 <p align="center">
-  <img src="assets/discover_jsonplaceholder.gif" alt="JSONPlaceholder auto-probe discovery" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/discover_jsonplaceholder.gif" alt="JSONPlaceholder auto-probe discovery" width="100%">
 </p>
 
 ## Community Spec Sharing
@@ -213,7 +255,7 @@ Static homepage with no XHR? site2cli auto-discovers and probes REST-like links:
 Share and reuse discovered API specs across teams:
 
 <p align="center">
-  <img src="assets/community.gif" alt="Community export/import demo" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/community.gif" alt="Community export/import demo" width="100%">
 </p>
 
 ## Architecture
@@ -309,7 +351,7 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 
 ## Testing
 
-**306 tests** (300 unit/integration + 6 live), all passing on Python 3.10+.
+**417 tests** (411 unit/integration + 6 live), all passing on Python 3.10+.
 
 | Test File | Tests | Coverage Area |
 |---|---|---|
@@ -340,12 +382,19 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 | `test_profiles.py` | 12 | Chrome/Firefox profile detection & import |
 | `test_daemon.py` | 12 | Daemon server lifecycle, JSON-RPC over Unix socket |
 | `test_session.py` | 10 | Named browser session persistence & reuse |
+| `test_content_converter.py` | 21 | HTML-to-markdown/text conversion, main content extraction |
+| `test_extract.py` | 26 | Schema loading, validation, extraction prompt building |
+| `test_proxy.py` | 13 | ProxyConfig: URL building, Playwright/httpx formats, auth |
+| `test_data_flow.py` | 17 | JSONPath extraction, data flow between pipeline steps |
+| `test_device_flow.py` | 14 | OAuth device code request, polling, token refresh |
+| `test_orchestrator.py` | 12 | Pipeline execution, error policies, step result tracking |
+| `test_providers.py` | 8 | OAuth provider configs (GitHub, Google, Microsoft) |
 | `test_integration_live.py` | 6 | Live tests against JSONPlaceholder + httpbin |
 
 ## CLI Overview
 
 <p align="center">
-  <img src="assets/help.gif" alt="CLI help overview" width="100%">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/help.gif" alt="CLI help overview" width="100%">
 </p>
 
 ## Development
@@ -370,7 +419,28 @@ ruff check src/ tests/
 - **Anthropic API key** (`ANTHROPIC_API_KEY`): Used for LLM-assisted endpoint analysis. Optional — discovery works without it, just without enhanced descriptions.
 - **No other keys required** for core functionality.
 
-## What's New in v0.3.1
+## What's New in v0.5.0
+
+- **`extract` command** — LLM-powered structured data extraction with JSON Schema validation, Pydantic model support, and batch processing (`site2cli extract <url> -p "..." -s schema.json`)
+- **`scrape` command** — Web scraping with HTML-to-markdown/text/html conversion and main content extraction (`site2cli scrape <url> --format markdown|text|html`)
+- **Content conversion module** — `html_to_markdown`, `html_to_text`, `extract_main_content`, `format_for_llm` — graceful fallback when markdownify is not installed
+- **Proxy support** — New `--proxy` flag on `discover`, `run`, `extract`, `scrape`; unified `ProxyConfig` integrates with Playwright and httpx
+- **`--format` flag on `run`** — Output results as json, markdown, or text
+- **New `content` extra** — `pip install site2cli[content]` for markdownify-powered HTML conversion
+- **417 tests** (up from 357), all passing
+
+<details>
+<summary>v0.4.0</summary>
+
+- **OAuth Device Flow (RFC 8628)** — `site2cli auth login --provider github` for GitHub, Google, Microsoft; token refresh, secure storage
+- **Multi-site orchestration** — YAML/JSON pipelines that chain actions across sites with JSONPath data flow (`$result.data[0].id`)
+- **Pipeline management** — `site2cli orchestrate run/list/delete` commands with on_error policies (fail/skip/retry)
+- **357 tests** (up from 306), all passing
+
+</details>
+
+<details>
+<summary>v0.3.1</summary>
 
 - **Claude Code MCP integration** — `claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp` works out of the box
 - **Live browser validation** — Experiment 15: real Playwright browser → CDP capture → full pipeline tested against 5 public sites (4/5 pass)
@@ -381,6 +451,8 @@ ruff check src/ tests/
 - **MCP tool name sanitization** — Strips invalid characters from tool names (was crashing MCP SDK)
 - **Community export/import validated** — Full roundtrip: export → remove → reimport → API calls succeed
 - **Terminal demo GIF** — `assets/demo.gif` shows the full discover → run → export flow
+
+</details>
 
 <details>
 <summary>v0.3.0</summary>
@@ -431,9 +503,14 @@ ruff check src/ tests/
 - [x] Live browser discovery validation (Experiment 15)
 - [x] LLM-driven browser exploration (Tier 1) validated
 - [x] Community spec export/import validated end-to-end
-- [ ] OAuth device flow support
-- [ ] Multi-site orchestration
+- [x] OAuth device flow support
+- [x] Multi-site orchestration
+- [x] Structured data extraction (`extract` command)
+- [x] Web scraping with content conversion (`scrape` command)
+- [x] Proxy support (Playwright + httpx)
 - [ ] Trained endpoint classifier (replace heuristics)
+- [ ] WebSocket traffic capture
+- [ ] Streaming response support
 
 ## License
 

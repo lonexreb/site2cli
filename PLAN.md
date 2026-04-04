@@ -338,6 +338,35 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 
 ---
 
+### Phase 7: OAuth Device Flow & Orchestration (v0.4.0) -- COMPLETE
+
+**Files created:**
+- `src/site2cli/auth/device_flow.py` — OAuth device flow (RFC 8628)
+- `src/site2cli/auth/providers.py` — Pre-configured GitHub, Google, Microsoft
+- `src/site2cli/orchestration/data_flow.py` — JSONPath-like data extraction
+- `src/site2cli/orchestration/orchestrator.py` — Pipeline executor
+- `src/site2cli/orchestration/loader.py` — YAML/JSON pipeline load/save
+
+**Files modified:**
+- `src/site2cli/cli.py` — auth login, orchestrate run/list/delete commands
+- `src/site2cli/registry.py` — orchestrations table + CRUD
+- `src/site2cli/auth/manager.py` — OAuth token storage, refresh, async headers
+
+### Phase 8: Extract, Scrape & Proxy (v0.5.0) -- COMPLETE
+
+**Files created:**
+- `src/site2cli/content/converter.py` — HTML to markdown/text, main content extraction
+- `src/site2cli/extract/extractor.py` — LLM extraction with schema validation
+
+**Files modified:**
+- `src/site2cli/cli.py` — extract, scrape commands; --proxy and --format flags
+- `src/site2cli/config.py` — ProxyConfig class
+- `src/site2cli/browser/context.py` — Proxy integration in Playwright
+- `src/site2cli/tiers/direct_api.py` — Proxy integration in httpx
+- `pyproject.toml` — content extra, version bump to 0.5.0
+
+---
+
 ## Verification & Testing
 
 1. **Unit tests**: Test each component in isolation (capture, analyze, generate) — ✅ 300 tests passing across 28 test files
@@ -358,8 +387,15 @@ Agent: "Find me the cheapest flight from SFO to JFK next Friday"
 16. **Daemon test**: Server lifecycle, JSON-RPC protocol — ✅ 12 tests (`test_daemon.py`)
 17. **Session test**: Named session persistence & reuse — ✅ 10 tests (`test_session.py`)
 18. **Live validation (Experiment #8)**: Full pipeline against 5 real public APIs (JSONPlaceholder, httpbin, Dog CEO, Open-Meteo, GitHub) — ✅ 25 endpoints discovered, all specs valid, all generated clients make real API calls, 25 MCP tools generated, avg 310ms per API
+19. **Content converter test**: HTML-to-markdown/text conversion, main content extraction — ✅ 21 tests (`test_content_converter.py`)
+20. **Extract test**: Schema loading, validation, extraction prompt building — ✅ 26 tests (`test_extract.py`)
+21. **Proxy test**: ProxyConfig URL building, Playwright/httpx formats, auth — ✅ 13 tests (`test_proxy.py`)
+22. **Data flow test**: JSONPath extraction, data flow between pipeline steps — ✅ 17 tests (`test_data_flow.py`)
+23. **Device flow test**: OAuth device code request, polling, token refresh — ✅ 14 tests (`test_device_flow.py`)
+24. **Orchestrator test**: Pipeline execution, error policies, step result tracking — ✅ 12 tests (`test_orchestrator.py`)
+25. **Providers test**: OAuth provider configs (GitHub, Google, Microsoft) — ✅ 8 tests (`test_providers.py`)
 
-**Total: 306 tests, all passing** (300 unit/integration + 6 live)
+**Total: 417 tests, all passing** (411 unit/integration + 6 live)
 
 ### Bugs Found & Fixed by Integration Tests
 - `models.py`: `example_response` typed as `dict | None` but API responses can be arrays — fixed to `dict | list | None`
