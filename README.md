@@ -7,7 +7,8 @@
 </p>
 
 <p align="center">
-  <strong>Turn any website into a CLI/API for AI agents.</strong>
+  <strong>Turn any website into a CLI/API for AI agents.</strong><br/>
+  Discover APIs automatically. Extract structured data like Firecrawl — but local, free, and open-source.
 </p>
 
 <p align="center">
@@ -32,50 +33,11 @@ AI agents interact with websites through browser automation, which is slow, expe
 | **Setup** | Write custom Playwright scripts | `site2cli discover <url>` |
 | **Output** | Screenshots, raw HTML | Structured JSON, typed clients |
 
-## How It Works
+## CLI Overview
 
-site2cli uses **Progressive Formalization** — a 3-tier system that automatically graduates interactions from slow-but-universal to fast-but-specific:
-
-```mermaid
-graph LR
-    A["Tier 1: Browser<br/>Exploration"] -->|"Pattern<br/>detected"| B["Tier 2: Cached<br/>Workflow"]
-    B -->|"API<br/>discovered"| C["Tier 3: Direct<br/>API Call"]
-    style A fill:#ff6b6b,color:#fff
-    style B fill:#ffd93d,color:#000
-    style C fill:#6bcb77,color:#fff
-```
-
-The **Discovery Pipeline** captures browser traffic and converts it into structured interfaces:
-
-```mermaid
-graph TD
-    A[Launch Browser + CDP] --> B[Capture Network Traffic]
-    B --> C[Group by Endpoint Pattern]
-    C --> D[LLM-Assisted Analysis]
-    D --> E[OpenAPI 3.1 Spec]
-    E --> F[Python Client]
-    E --> G[CLI Commands]
-    E --> H[MCP Server]
-```
-
-## Comparison
-
-| Feature | browser-use 2.0 | Hand-built CLIs | CLI-Anything | Stagehand v3 | **site2cli** |
-|---|---|---|---|---|---|
-| Works on any site | Yes | No | Yes | Yes | Yes |
-| Structured output | No | Yes | Yes | Yes | Yes |
-| Auto-discovery | No | No | No | No | **Yes** |
-| MCP server generation | Acts as MCP | No | No | Yes | **Generates MCP** |
-| Progressive optimization | No | N/A | No | Auto-cache | **Yes (3 tiers)** |
-| Cookie banner handling | No | N/A | No | No | **Yes** |
-| Auth page detection | No | N/A | No | No | **Yes** |
-| Self-healing | No | No | No | Yes | **Yes** |
-| No browser needed (after discovery) | No | Yes | No | No | **Yes** |
-| Session persistence | **Yes** | No | No | No | **Yes** |
-| Cookie management | **Yes** | No | No | No | **Yes** |
-| Daemon mode | **Yes** (~50ms) | No | No | No | **Yes** |
-| CAPTCHA solving | **Yes** | No | No | No | Detection only |
-| Community spec sharing | No | No | No | No | **Yes** |
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/help.gif" alt="CLI help overview" width="100%">
+</p>
 
 ## Quick Start
 
@@ -118,7 +80,106 @@ site2cli mcp generate kayak.com
 site2cli mcp serve kayak.com
 ```
 
-### Manage Browser Auth & Sessions
+---
+
+## Extract & Scrape — Open-Source Firecrawl Alternative
+
+site2cli includes a complete web extraction pipeline — **no API keys for scraping, no pay-per-page pricing, runs 100% locally.**
+
+### Comparison with Firecrawl
+
+| Feature | Firecrawl | **site2cli** |
+|---|---|---|
+| Scrape to markdown | Yes (cloud) | **Yes (local)** |
+| Structured extraction | Yes ($) | **Yes (local LLM)** |
+| JSON Schema validation | Yes | **Yes** |
+| Batch extraction | Yes | **Yes** |
+| Main content extraction | Yes | **Yes** |
+| Pricing | $0.001-0.004/page | **Free** |
+| Runs locally | No (SaaS) | **Yes** |
+| API discovery | No | **Yes** |
+| MCP server generation | No | **Yes** |
+| Progressive optimization | No | **Yes (3 tiers)** |
+| Open source | Partial | **Yes (MIT)** |
+
+### Extract Structured Data
+
+LLM-powered extraction with natural language prompts and JSON Schema validation:
+
+```bash
+# Extract data using natural language
+site2cli extract https://example.com -p "Extract the page title and all links"
+
+# Extract with JSON Schema validation
+site2cli extract https://news.ycombinator.com \
+  -s '{"type":"object","properties":{"stories":{"type":"array"}}}'
+
+# Use a Pydantic model as schema
+site2cli extract https://example.com -s "myapp.models.Article"
+
+# Batch extraction from multiple URLs
+site2cli extract https://example.com -u https://example.org -p "Get the page title"
+
+# Save results to file
+site2cli extract https://example.com -p "Extract all headings" -o results.json
+```
+
+### Scrape Any Page to Markdown / Text / HTML
+
+```bash
+# Convert page to markdown (default)
+site2cli scrape https://example.com
+
+# Convert to plain text
+site2cli scrape https://example.com --format text
+
+# Extract just the main content (skip nav/footer/sidebar)
+site2cli scrape https://example.com --main-content
+
+# Save raw HTML of main content
+site2cli scrape https://example.com --format html -o output.html
+```
+
+### Use a Proxy
+
+```bash
+# Any command supports --proxy
+site2cli discover example.com --proxy http://proxy:8080
+site2cli extract https://example.com -p "titles" --proxy socks5://proxy:1080
+site2cli scrape https://example.com --proxy http://user:pass@proxy:8080
+```
+
+---
+
+## Use with Claude Code / Claude Desktop
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/mcp.gif" alt="MCP integration demo" width="100%">
+</p>
+
+```bash
+# Add site2cli as an MCP server for Claude Code
+claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp
+
+# Or add to Claude Desktop's config (~/.claude/claude_desktop_config.json):
+# {
+#   "mcpServers": {
+#     "site2cli": {
+#       "command": "uvx",
+#       "args": ["--from", "site2cli[mcp]", "site2cli", "--mcp"]
+#     }
+#   }
+# }
+```
+
+Once configured, Claude can call any discovered site's API as a tool:
+> "Use site2cli to get data about the Pokemon Ditto"
+
+**Note:** You need to run `site2cli discover <url>` first to populate the registry. The MCP server exposes all discovered sites as tools.
+
+---
+
+## Manage Browser Auth & Sessions
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/cookies.gif" alt="Cookie management demo" width="100%">
@@ -146,72 +207,62 @@ site2cli --mcp
 # or: site2cli mcp serve-all
 ```
 
-### Extract Structured Data
+## Comparison
 
-```bash
-# Extract data using natural language
-site2cli extract https://example.com -p "Extract the page title and all links"
+| Feature | browser-use 2.0 | Firecrawl | CLI-Anything | Stagehand v3 | **site2cli** |
+|---|---|---|---|---|---|
+| Works on any site | Yes | Yes | Yes | Yes | Yes |
+| Structured output | No | Yes | Yes | Yes | Yes |
+| Auto-discovery | No | No | No | No | **Yes** |
+| Structured extraction | No | **Yes ($)** | No | No | **Yes (free)** |
+| Scrape to markdown | No | **Yes ($)** | No | No | **Yes (free)** |
+| MCP server generation | Acts as MCP | No | No | Yes | **Generates MCP** |
+| Progressive optimization | No | No | No | Auto-cache | **Yes (3 tiers)** |
+| Runs locally | Yes | No (SaaS) | Yes | Yes | **Yes** |
+| Cookie banner handling | No | Yes | No | No | **Yes** |
+| Auth page detection | No | No | No | No | **Yes** |
+| Self-healing | No | No | No | Yes | **Yes** |
+| No browser needed (after discovery) | No | N/A | No | No | **Yes** |
+| Session persistence | **Yes** | No | No | No | **Yes** |
+| Daemon mode | **Yes** (~50ms) | No | No | No | **Yes** |
+| Community spec sharing | No | No | No | No | **Yes** |
 
-# Extract with JSON Schema validation
-site2cli extract https://news.ycombinator.com -s '{"type":"object","properties":{"stories":{"type":"array"}}}'
+## How It Works
 
-# Batch extraction from multiple URLs
-site2cli extract https://example.com -u https://example.org -p "Get the page title"
+site2cli uses **Progressive Formalization** — a 3-tier system that automatically graduates interactions from slow-but-universal to fast-but-specific:
 
-# Save results to file
-site2cli extract https://example.com -p "Extract all headings" -o results.json
+```mermaid
+graph LR
+    A["Tier 1: Browser<br/>Exploration"] -->|"Pattern<br/>detected"| B["Tier 2: Cached<br/>Workflow"]
+    B -->|"API<br/>discovered"| C["Tier 3: Direct<br/>API Call"]
+    style A fill:#ff6b6b,color:#fff
+    style B fill:#ffd93d,color:#000
+    style C fill:#6bcb77,color:#fff
 ```
 
-### Scrape a Web Page
+The **Discovery Pipeline** captures browser traffic and converts it into structured interfaces:
 
-```bash
-# Convert page to markdown (default)
-site2cli scrape https://example.com
-
-# Convert to plain text
-site2cli scrape https://example.com --format text
-
-# Extract just the main content (skip nav/footer/sidebar)
-site2cli scrape https://example.com --main-content
-
-# Save raw HTML of main content
-site2cli scrape https://example.com --format html -o output.html
+```mermaid
+graph TD
+    A[Launch Browser + CDP] --> B[Capture Network Traffic]
+    B --> C[Group by Endpoint Pattern]
+    C --> D[LLM-Assisted Analysis]
+    D --> E[OpenAPI 3.1 Spec]
+    E --> F[Python Client]
+    E --> G[CLI Commands]
+    E --> H[MCP Server]
 ```
 
-### Use a Proxy
+## What Gets Generated
 
-```bash
-# Any command supports --proxy
-site2cli discover example.com --proxy http://proxy:8080
-site2cli extract https://example.com -p "titles" --proxy socks5://proxy:1080
-site2cli scrape https://example.com --proxy http://user:pass@proxy:8080
-```
+From a single discovery session, site2cli produces:
 
-### Use with Claude Code / Claude Desktop
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/mcp.gif" alt="MCP integration demo" width="100%">
-</p>
-
-```bash
-# Add site2cli as an MCP server for Claude Code
-claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp
-
-# Or add to Claude Desktop's config (~/.claude/claude_desktop_config.json):
-# {
-#   "mcpServers": {
-#     "site2cli": {
-#       "command": "uvx",
-#       "args": ["--from", "site2cli[mcp]", "site2cli", "--mcp"]
-#     }
-#   }
-# }
-```
-
-Once configured, Claude can call any discovered site's API as a tool:
-> "Use site2cli to get data about the Pokemon Ditto"
-
-**Note:** You need to run `site2cli discover <url>` first to populate the registry. The MCP server exposes all discovered sites as tools.
+| Output | Description |
+|---|---|
+| **OpenAPI 3.1 Spec** | Full API specification with schemas, parameters, auth |
+| **Python Client** | Typed httpx client with methods for each endpoint |
+| **CLI Commands** | Typer commands you can run from terminal |
+| **MCP Server** | Tools that AI agents (Claude, etc.) can call directly |
 
 ## As a Python Library
 
@@ -231,16 +282,63 @@ spec = generate_openapi_spec(api)
 mcp_code = generate_mcp_server_code(site, spec)
 ```
 
-## What Gets Generated
+---
 
-From a single discovery session, site2cli produces:
+## What's New in v0.5.0
 
-| Output | Description |
-|---|---|
-| **OpenAPI 3.1 Spec** | Full API specification with schemas, parameters, auth |
-| **Python Client** | Typed httpx client with methods for each endpoint |
-| **CLI Commands** | Typer commands you can run from terminal |
-| **MCP Server** | Tools that AI agents (Claude, etc.) can call directly |
+- **`extract` command** — LLM-powered structured data extraction with JSON Schema validation, Pydantic model support, and batch processing
+- **`scrape` command** — Web scraping with HTML-to-markdown/text/html conversion and main content extraction
+- **Proxy support** — New `--proxy` flag on `discover`, `run`, `extract`, `scrape`
+- **`--format` flag on `run`** — Output results as json, markdown, or text
+- **New `content` extra** — `pip install site2cli[content]` for HTML conversion
+- **417 tests** (up from 357), all passing
+
+<details>
+<summary>v0.4.0</summary>
+
+- **OAuth Device Flow (RFC 8628)** — `site2cli auth login --provider github` for GitHub, Google, Microsoft; token refresh, secure storage
+- **Multi-site orchestration** — YAML/JSON pipelines that chain actions across sites with JSONPath data flow (`$result.data[0].id`)
+- **Pipeline management** — `site2cli orchestrate run/list/delete` commands with on_error policies (fail/skip/retry)
+- **357 tests** (up from 306), all passing
+
+</details>
+
+<details>
+<summary>v0.3.1</summary>
+
+- **Claude Code MCP integration** — `claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp` works out of the box
+- **Live browser validation** — Experiment 15: real Playwright browser → CDP capture → full pipeline tested against 5 public sites (4/5 pass)
+- **LLM-driven exploration validated** — REST Countries: Claude found `/v3.1/all` endpoint in 8 browser steps
+- **Auto-probe for static sites** — When homepage has no XHR, automatically discovers and probes API-like links (`/posts`, `/users`, etc.)
+- **Terminal demo GIF** — `assets/demo.gif` shows the full discover → run → export flow
+
+</details>
+
+<details>
+<summary>v0.3.0</summary>
+
+- **Cookie management** — `site2cli cookies list/set/clear/export/import` with Playwright-compatible format
+- **Browser profile import** — `site2cli auth profile-import --browser chrome` auto-detects Chrome/Firefox profiles
+- **Named browser sessions** — `--session` flag on discover/run, `site2cli session list/close/close-all`
+- **Workflow recording** — Record and replay browser workflows with parameterization
+- **Background browser daemon** — `site2cli daemon start/stop/status` keeps a persistent browser
+- **Unified MCP server** — `site2cli --mcp` serves ALL discovered sites as MCP tools
+- **306 tests** (up from 214), all passing
+
+</details>
+
+<details>
+<summary>v0.2.5</summary>
+
+- **Cookie banner auto-dismissal** — 3-strategy detection (30+ vendor selectors, multilingual text, a11y roles)
+- **Auth page detection** — Detects login/SSO/OAuth/MFA/CAPTCHA pages
+- **Accessibility tree extraction** — Better page representation for LLM-driven exploration
+- **Rich wait conditions** — 9 condition types: network-idle, load, selector, stable, etc.
+- **Output filtering** — `--grep`, `--limit`, `--keys-only`, `--compact` flags
+
+</details>
+
+---
 
 ## Auto-Probe Discovery
 
@@ -258,40 +356,10 @@ Share and reuse discovered API specs across teams:
   <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/community.gif" alt="Community export/import demo" width="100%">
 </p>
 
-## Architecture
+---
 
-```mermaid
-graph TB
-    subgraph "Interface Layer"
-        CLI[CLI - Typer]
-        MCP[MCP Server]
-        SDK[Python SDK]
-    end
-    subgraph "Router"
-        R[Tier Router + Fallback]
-    end
-    subgraph "Execution Tiers"
-        T1[Tier 1: Browser]
-        T2[Tier 2: Workflow]
-        T3[Tier 3: API]
-    end
-    subgraph "Discovery Engine"
-        CAP[Traffic Capture - CDP]
-        ANA[Pattern Analyzer]
-        GEN[Code Generators]
-    end
-    CLI --> R
-    MCP --> R
-    SDK --> R
-    R --> T1
-    R --> T2
-    R --> T3
-    CAP --> ANA --> GEN
-```
-
-## Live Validation
-
-site2cli has been validated with **7 experiments** across **15+ real public APIs** — a comprehensive pre-launch test suite:
+<details>
+<summary><h2>Live Validation (8 Experiments, 15+ APIs)</h2></summary>
 
 ### Experiment #8: Core Pipeline (5 APIs)
 
@@ -349,22 +417,37 @@ weather = client.get_v1_forecast(latitude="37.77", longitude="-122.42", current_
 
 Reproduce all experiments: `python experiments/run_all_experiments.py`
 
-## Testing
+</details>
+
+<details>
+<summary><h2>Testing (417 tests)</h2></summary>
 
 **417 tests** (411 unit/integration + 6 live), all passing on Python 3.10+.
 
 | Test File | Tests | Coverage Area |
 |---|---|---|
 | `test_analyzer.py` | 23 | Traffic analysis, path normalization, schema inference, auth detection |
+| `test_extract.py` | 26 | Schema loading, validation, extraction prompt building |
+| `test_cookies.py` | 23 | Cookie CRUD, import/export, Playwright format migration |
+| `test_content_converter.py` | 21 | HTML-to-markdown/text conversion, main content extraction |
+| `test_data_flow.py` | 17 | JSONPath extraction, data flow between pipeline steps |
 | `test_cli.py` | 16 | All CLI subcommands via CliRunner |
 | `test_models.py` | 15 | Pydantic model validation, serialization, defaults |
 | `test_router.py` | 15 | Tier routing, fallback, promotion, param forwarding |
+| `test_workflow_recorder.py` | 15 | Workflow recording, parameterization, domain CRUD |
+| `test_mcp_server.py` | 14 | Unified MCP server, tool schema generation, registry |
+| `test_device_flow.py` | 14 | OAuth device code request, polling, token refresh |
+| `test_proxy.py` | 13 | ProxyConfig: URL building, Playwright/httpx formats, auth |
 | `test_cookie_banner.py` | 12 | Cookie banner detection & auto-dismissal |
+| `test_profiles.py` | 12 | Chrome/Firefox profile detection & import |
+| `test_daemon.py` | 12 | Daemon server lifecycle, JSON-RPC over Unix socket |
+| `test_orchestrator.py` | 12 | Pipeline execution, error policies, step result tracking |
 | `test_auth.py` | 11 | Keyring store/get, auth headers, cookie extraction |
 | `test_integration_pipeline.py` | 11 | Full pipeline with mock data |
 | `test_registry.py` | 10 | SQLite CRUD, tier updates, health tracking |
 | `test_wait_conditions.py` | 10 | Rich wait conditions (network-idle, selector, stable) |
 | `test_detectors.py` | 10 | Auth/SSO/CAPTCHA page detection |
+| `test_session.py` | 10 | Named browser session persistence & reuse |
 | `test_tier_promotion.py` | 9 | Tier fallback, auto-promotion, failure gates |
 | `test_config.py` | 8 | Config singleton, dirs, YAML save/load, API key |
 | `test_health.py` | 8 | Health check with mock httpx, status persistence |
@@ -373,29 +456,44 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 | `test_a11y.py` | 8 | Accessibility tree extraction and formatting |
 | `test_output_filter.py` | 8 | Output filtering (grep, limit, keys-only) |
 | `test_agent_config.py` | 8 | Agent config generation (Claude MCP, generic) |
+| `test_providers.py` | 8 | OAuth provider configs (GitHub, Google, Microsoft) |
 | `test_spec_generator.py` | 6 | OpenAPI spec generation and persistence |
 | `test_community.py` | 6 | Export/import roundtrip, community listing |
-| `test_client_generator.py` | 4 | Python client code generation |
-| `test_cookies.py` | 23 | Cookie CRUD, import/export, Playwright format migration |
-| `test_workflow_recorder.py` | 15 | Workflow recording, parameterization, domain CRUD |
-| `test_mcp_server.py` | 14 | Unified MCP server, tool schema generation, registry |
-| `test_profiles.py` | 12 | Chrome/Firefox profile detection & import |
-| `test_daemon.py` | 12 | Daemon server lifecycle, JSON-RPC over Unix socket |
-| `test_session.py` | 10 | Named browser session persistence & reuse |
-| `test_content_converter.py` | 21 | HTML-to-markdown/text conversion, main content extraction |
-| `test_extract.py` | 26 | Schema loading, validation, extraction prompt building |
-| `test_proxy.py` | 13 | ProxyConfig: URL building, Playwright/httpx formats, auth |
-| `test_data_flow.py` | 17 | JSONPath extraction, data flow between pipeline steps |
-| `test_device_flow.py` | 14 | OAuth device code request, polling, token refresh |
-| `test_orchestrator.py` | 12 | Pipeline execution, error policies, step result tracking |
-| `test_providers.py` | 8 | OAuth provider configs (GitHub, Google, Microsoft) |
 | `test_integration_live.py` | 6 | Live tests against JSONPlaceholder + httpbin |
+| `test_client_generator.py` | 4 | Python client code generation |
 
-## CLI Overview
+</details>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/help.gif" alt="CLI help overview" width="100%">
-</p>
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "Interface Layer"
+        CLI[CLI - Typer]
+        MCP[MCP Server]
+        SDK[Python SDK]
+    end
+    subgraph "Router"
+        R[Tier Router + Fallback]
+    end
+    subgraph "Execution Tiers"
+        T1[Tier 1: Browser]
+        T2[Tier 2: Workflow]
+        T3[Tier 3: API]
+    end
+    subgraph "Discovery Engine"
+        CAP[Traffic Capture - CDP]
+        ANA[Pattern Analyzer]
+        GEN[Code Generators]
+    end
+    CLI --> R
+    MCP --> R
+    SDK --> R
+    R --> T1
+    R --> T2
+    R --> T3
+    CAP --> ANA --> GEN
+```
 
 ## Development
 
@@ -416,70 +514,8 @@ ruff check src/ tests/
 
 ## API Keys
 
-- **Anthropic API key** (`ANTHROPIC_API_KEY`): Used for LLM-assisted endpoint analysis. Optional — discovery works without it, just without enhanced descriptions.
+- **Anthropic API key** (`ANTHROPIC_API_KEY`): Used for LLM-assisted endpoint analysis and `extract` command. Optional — discovery and scraping work without it.
 - **No other keys required** for core functionality.
-
-## What's New in v0.5.0
-
-- **`extract` command** — LLM-powered structured data extraction with JSON Schema validation, Pydantic model support, and batch processing (`site2cli extract <url> -p "..." -s schema.json`)
-- **`scrape` command** — Web scraping with HTML-to-markdown/text/html conversion and main content extraction (`site2cli scrape <url> --format markdown|text|html`)
-- **Content conversion module** — `html_to_markdown`, `html_to_text`, `extract_main_content`, `format_for_llm` — graceful fallback when markdownify is not installed
-- **Proxy support** — New `--proxy` flag on `discover`, `run`, `extract`, `scrape`; unified `ProxyConfig` integrates with Playwright and httpx
-- **`--format` flag on `run`** — Output results as json, markdown, or text
-- **New `content` extra** — `pip install site2cli[content]` for markdownify-powered HTML conversion
-- **417 tests** (up from 357), all passing
-
-<details>
-<summary>v0.4.0</summary>
-
-- **OAuth Device Flow (RFC 8628)** — `site2cli auth login --provider github` for GitHub, Google, Microsoft; token refresh, secure storage
-- **Multi-site orchestration** — YAML/JSON pipelines that chain actions across sites with JSONPath data flow (`$result.data[0].id`)
-- **Pipeline management** — `site2cli orchestrate run/list/delete` commands with on_error policies (fail/skip/retry)
-- **357 tests** (up from 306), all passing
-
-</details>
-
-<details>
-<summary>v0.3.1</summary>
-
-- **Claude Code MCP integration** — `claude mcp add site2cli -- uvx --from 'site2cli[mcp]' site2cli --mcp` works out of the box
-- **Live browser validation** — Experiment 15: real Playwright browser → CDP capture → full pipeline tested against 5 public sites (4/5 pass)
-- **LLM-driven exploration validated** — REST Countries: Claude found `/v3.1/all` endpoint in 8 browser steps
-- **Auto-probe for static sites** — When homepage has no XHR, automatically discovers and probes API-like links (`/posts`, `/users`, etc.)
-- **False captcha fix** — Invisible reCAPTCHA scoring iframes no longer block discovery
-- **Navigation timeout fallback** — Falls back to `domcontentloaded` when `networkidle` hangs
-- **MCP tool name sanitization** — Strips invalid characters from tool names (was crashing MCP SDK)
-- **Community export/import validated** — Full roundtrip: export → remove → reimport → API calls succeed
-- **Terminal demo GIF** — `assets/demo.gif` shows the full discover → run → export flow
-
-</details>
-
-<details>
-<summary>v0.3.0</summary>
-
-- **Cookie management** — `site2cli cookies list/set/clear/export/import` with Playwright-compatible format
-- **Browser profile import** — `site2cli auth profile-import --browser chrome` auto-detects Chrome/Firefox profiles
-- **Named browser sessions** — `--session` flag on discover/run, `site2cli session list/close/close-all`
-- **Workflow recording** — Record and replay browser workflows with parameterization (`site2cli workflows list/show/delete`)
-- **Background browser daemon** — `site2cli daemon start/stop/status` keeps a persistent browser for faster operations
-- **Unified MCP server** — `site2cli --mcp` or `site2cli mcp serve-all` serves ALL discovered sites as MCP tools
-- **Indexed accessibility tree** — Interactive elements marked with `[@N]` notation for precise LLM-driven actions
-- **306 tests** (up from 214), all passing
-
-</details>
-
-<details>
-<summary>v0.2.5</summary>
-
-- **Cookie banner auto-dismissal** — 3-strategy detection (30+ vendor selectors, multilingual text matching, a11y role matching) runs automatically during discovery
-- **Auth page detection** — Detects login/SSO/OAuth/MFA/CAPTCHA pages and suggests `site2cli auth login`
-- **Accessibility tree extraction** — Better page representation for LLM-driven exploration (replaces CSS-only element extraction)
-- **Action retry logic** — Configurable retries with delay for click/fill/select/press actions
-- **Rich wait conditions** — 9 condition types: `network-idle`, `load`, `exists:<selector>`, `visible:<selector>`, `hidden:<selector>`, `url-contains:<text>`, `text-contains:<text>`, `stable`
-- **Output filtering** — `--grep`, `--limit`, `--keys-only`, `--compact` flags on `site2cli run`
-- **Agent init command** — `site2cli init` generates Claude MCP config or generic agent prompts from discovered sites
-
-</details>
 
 ## Roadmap
 
@@ -488,21 +524,10 @@ ruff check src/ tests/
 - [x] Community spec sharing (export/import)
 - [x] Health monitoring and self-healing
 - [x] Tier auto-promotion (Browser → Workflow → API)
-- [x] PyPI package publication
-- [x] Pre-launch validation suite (7 experiments, 15+ APIs, all passing)
 - [x] Cookie banner handling & auth page detection
-- [x] Accessibility tree extraction for browser exploration
-- [x] Agent init/config generation
-- [x] Output filtering for run results
-- [x] Cookie management & browser profile import
-- [x] Workflow recording & replay
-- [x] Named session persistence & reuse
 - [x] Background browser daemon
 - [x] Unified MCP server (all sites as tools)
 - [x] Claude Code / Claude Desktop MCP integration
-- [x] Live browser discovery validation (Experiment 15)
-- [x] LLM-driven browser exploration (Tier 1) validated
-- [x] Community spec export/import validated end-to-end
 - [x] OAuth device flow support
 - [x] Multi-site orchestration
 - [x] Structured data extraction (`extract` command)
