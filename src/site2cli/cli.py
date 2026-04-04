@@ -407,6 +407,385 @@ def scrape(
             console.print(content)
 
 
+# --- Crawl, Monitor & Screenshot Commands ---
+
+
+@app.command()
+def crawl(
+    url: str = typer.Argument(help="URL to start crawling from"),
+    depth: int = typer.Option(3, "--depth", "-d", help="Maximum crawl depth"),
+    max_pages: int = typer.Option(100, "--max-pages", "-n", help="Maximum pages to crawl"),
+    output_format: Optional[str] = typer.Option(
+        "markdown", "--format", "-f", help="Output format: markdown, text, html, jsonl"
+    ),
+    main_content: bool = typer.Option(
+        True, "--main-content/--full-page", help="Extract main content only"
+    ),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Save to file/directory"),
+    stream: bool = typer.Option(False, "--stream", help="Stream JSONL as pages are crawled"),
+    sitemap: bool = typer.Option(False, "--sitemap", help="Only list discovered URLs"),
+    no_robots: bool = typer.Option(False, "--no-robots", help="Ignore robots.txt"),
+    resume: Optional[str] = typer.Option(None, "--resume", help="Resume a previous crawl by ID"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile"),
+    session: Optional[str] = typer.Option(None, "--session", help="Session name"),
+) -> None:
+    """Crawl an entire website and convert pages to markdown/text/HTML.
+
+    Examples:
+        site2cli crawl https://docs.example.com
+        site2cli crawl https://example.com -d 2 -n 50 --format jsonl --stream
+        site2cli crawl https://example.com --sitemap
+    """
+    from site2cli.config import get_config
+    from site2cli.crawl.crawler import SiteCrawler
+
+    config = get_config()
+    if proxy:
+        config.proxy.url = proxy
+
+    # Resume support
+    visited: set[str] | None = None
+    job_id = resume
+    if resume:
+        registry = _get_registry()
+        visited = registry.get_crawled_urls(resume)
+        console.print(f"[dim]Resuming crawl {resume} ({len(visited)} pages already crawled)[/dim]")
+
+    crawler = SiteCrawler(
+        start_url=url,
+        max_depth=depth,
+        max_pages=max_pages,
+        output_format=output_format or "markdown",
+        main_content_only=main_content,
+        respect_robots=not no_robots,
+        sitemap_only=sitemap,
+        delay_ms=config.crawl.delay_ms,
+        concurrent=config.crawl.concurrent_requests,
+        proxy=config.proxy.get_httpx_proxy(),
+        user_agent=config.crawl.user_agent,
+        job_id=job_id,
+        visited=visited,
+    )
+
+    pages: list = []
+    registry = _get_registry()
+    job = crawler.get_job()
+    registry.save_crawl_job(job)
+
+    async def _crawl():
+        async for page in crawler.crawl():
+            registry.save_crawl_page(job.id, page)
+            pages.append(page)
+
+    if stream or sitemap:
+        # Stream mode: print as we go
+        async def _stream():
+            async for page in crawler.crawl():
+                registry.save_crawl_page(job.id, page)
+                pages.append(page)
+                if sitemap:
+                    console.print(page.url)
+                else:
+                    import json as _json
+                    line = _json.dumps(
+                        {"url": page.url, "title": page.title, "depth": page.depth,
+                         "status_code": page.status_code, "content": page.content},
+                        default=str,
+                    )
+                    console.print(line)
+
+        _run_async(_stream())
+    else:
+        with console.status("[bold green]Crawling...") as status:
+            async def _crawl_with_progress():
+                async for page in crawler.crawl():
+                    registry.save_crawl_page(job.id, page)
+                    pages.append(page)
+                    status.update(
+                        f"[bold green]Crawling... {len(pages)}/{max_pages} pages"
+                        f" (depth {page.depth}) — {page.url[:60]}"
+                    )
+
+            _run_async(_crawl_with_progress())
+
+    # Update job status
+    from site2cli.models import CrawlStatus
+    job.status = CrawlStatus.COMPLETED
+    job.pages_crawled = len(pages)
+    from datetime import datetime
+    job.completed_at = datetime.utcnow()
+    registry.save_crawl_job(job)
+
+    errors = sum(1 for p in pages if p.error)
+    console.print(
+        f"\n[bold]Crawled {len(pages)} pages[/bold]"
+        f" ({errors} errors) from {crawler.domain}"
+        f"\n[dim]Job ID: {job.id}[/dim]"
+    )
+
+    # Save to output
+    if output and not sitemap and not stream:
+        out_path = Path(output)
+        if output_format == "jsonl":
+            with open(out_path, "w") as f:
+                for p in pages:
+                    f.write(json.dumps(
+                        {"url": p.url, "title": p.title, "depth": p.depth,
+                         "status_code": p.status_code, "content": p.content},
+                        default=str,
+                    ) + "\n")
+        else:
+            out_path.mkdir(parents=True, exist_ok=True)
+            for p in pages:
+                if p.content:
+                    from urllib.parse import urlparse
+                    slug = urlparse(p.url).path.strip("/").replace("/", "_") or "index"
+                    ext = {"markdown": "md", "text": "txt", "html": "html"}.get(
+                        output_format or "markdown", "md"
+                    )
+                    (out_path / f"{slug}.{ext}").write_text(p.content)
+        console.print(f"Saved to [bold]{output}[/bold]")
+
+
+@app.command()
+def monitor(
+    url: str = typer.Argument("", help="URL to monitor for changes"),
+    interval: Optional[int] = typer.Option(
+        None, "--interval", "-i", help="Polling interval in seconds"
+    ),
+    webhook: Optional[str] = typer.Option(
+        None, "--webhook", "-w", help="Webhook URL for notifications"
+    ),
+    output_format: Optional[str] = typer.Option(
+        "diff", "--format", "-f", help="Output format: diff, json, markdown"
+    ),
+    main_content: bool = typer.Option(
+        True, "--main-content/--full-page", help="Monitor main content only"
+    ),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Save diff to file"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
+    list_watches: bool = typer.Option(False, "--list", help="List active watches"),
+    stop: Optional[str] = typer.Option(None, "--stop", help="Stop a watch by ID"),
+    history: Optional[str] = typer.Option(None, "--history", help="Show history for watch ID"),
+) -> None:
+    """Monitor a URL for content changes with diffing.
+
+    Examples:
+        site2cli monitor https://example.com/pricing
+        site2cli monitor https://example.com --interval 300
+        site2cli monitor https://example.com --webhook https://hooks.slack.com/xxx
+        site2cli monitor --list
+    """
+    import uuid
+
+    from site2cli.config import get_config
+    from site2cli.models import MonitorWatch
+    from site2cli.monitor.differ import format_diff
+    from site2cli.monitor.watcher import ChangeWatcher
+
+    registry = _get_registry()
+    config = get_config()
+    proxy_url = proxy or config.proxy.get_httpx_proxy()
+
+    if list_watches:
+        watches = registry.list_monitor_watches(active_only=False)
+        if not watches:
+            console.print("[yellow]No watches configured.[/yellow]")
+            return
+        table = Table(title="Monitor Watches")
+        table.add_column("ID", style="dim", max_width=8)
+        table.add_column("URL", style="bold")
+        table.add_column("Checks")
+        table.add_column("Changes")
+        table.add_column("Active")
+        table.add_column("Last Checked")
+        for w in watches:
+            table.add_row(
+                w.id[:8],
+                w.url[:60],
+                str(w.check_count),
+                str(w.change_count),
+                "Yes" if w.active else "No",
+                w.last_checked.strftime("%Y-%m-%d %H:%M") if w.last_checked else "-",
+            )
+        console.print(table)
+        return
+
+    if stop:
+        # Find watch by prefix
+        watches = registry.list_monitor_watches(active_only=False)
+        match = [w for w in watches if w.id.startswith(stop)]
+        if not match:
+            console.print(f"[red]Watch {stop} not found.[/red]")
+            raise typer.Exit(1)
+        w = match[0]
+        w.active = False
+        registry.save_monitor_watch(w)
+        console.print(f"[green]Stopped watch {w.id[:8]} for {w.url}[/green]")
+        return
+
+    if history:
+        snapshots = registry.get_snapshot_history(history, limit=20)
+        if not snapshots:
+            # Try prefix match
+            watches = registry.list_monitor_watches(active_only=False)
+            match = [w for w in watches if w.id.startswith(history)]
+            if match:
+                snapshots = registry.get_snapshot_history(match[0].id, limit=20)
+        if not snapshots:
+            console.print(f"[red]No history found for {history}.[/red]")
+            return
+        table = Table(title="Snapshot History")
+        table.add_column("Time")
+        table.add_column("Status")
+        table.add_column("Hash", style="dim", max_width=12)
+        for s in snapshots:
+            table.add_row(
+                s.captured_at.strftime("%Y-%m-%d %H:%M:%S"),
+                str(s.status_code),
+                s.content_hash[:12],
+            )
+        console.print(table)
+        return
+
+    if not url:
+        console.print("[red]URL is required (or use --list, --stop, --history).[/red]")
+        raise typer.Exit(1)
+
+    # Create or find existing watch
+    watches = registry.list_monitor_watches(active_only=False)
+    existing = [w for w in watches if w.url == url]
+    if existing:
+        watch = existing[0]
+        watch.active = True
+        if webhook:
+            watch.webhook_url = webhook
+    else:
+        watch = MonitorWatch(
+            id=str(uuid.uuid4()),
+            url=url,
+            interval_seconds=interval or 0,
+            webhook_url=webhook,
+            output_format=output_format or "diff",
+            main_content_only=main_content,
+        )
+    registry.save_monitor_watch(watch)
+
+    watcher = ChangeWatcher(registry)
+
+    if interval:
+        # Polling mode
+        import asyncio
+
+        console.print(
+            f"[bold]Monitoring {url} every {interval}s[/bold]"
+            f" (Ctrl+C to stop)"
+        )
+
+        async def _poll():
+            while True:
+                try:
+                    diff = await watcher.check(watch, proxy=proxy_url)
+                    if diff.changed:
+                        console.print(
+                            f"\n[bold yellow]Change detected![/bold yellow]"
+                            f" +{diff.added_lines} -{diff.removed_lines}"
+                        )
+                        console.print(format_diff(diff, output_format or "diff"))
+                    else:
+                        console.print(f"[dim]{watch.check_count} checks, no change[/dim]")
+                except Exception as e:
+                    console.print(f"[red]Error: {e}[/red]")
+                await asyncio.sleep(interval)
+
+        try:
+            _run_async(_poll())
+        except KeyboardInterrupt:
+            console.print("\n[dim]Stopped monitoring.[/dim]")
+    else:
+        # One-shot mode
+        with console.status("[bold green]Checking for changes..."):
+            diff = _run_async(watcher.check(watch, proxy=proxy_url))
+
+        if diff.changed:
+            console.print(
+                f"[bold yellow]Change detected![/bold yellow]"
+                f" +{diff.added_lines} -{diff.removed_lines}"
+            )
+            diff_text = format_diff(diff, output_format or "diff")
+            console.print(diff_text)
+            if output:
+                Path(output).write_text(diff_text)
+                console.print(f"Saved to [bold]{output}[/bold]")
+        else:
+            is_baseline = watch.check_count <= 1
+            if is_baseline:
+                console.print(
+                    f"[green]Baseline snapshot saved for {url}[/green]"
+                    f"\n[dim]Watch ID: {watch.id[:8]}[/dim]"
+                    f"\nRun again to check for changes."
+                )
+            else:
+                console.print(f"[green]No changes detected for {url}[/green]")
+
+
+@app.command()
+def screenshot(
+    url: str = typer.Argument(help="URL to capture"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
+    selector: Optional[str] = typer.Option(
+        None, "--selector", "-s", help="CSS selector for element"
+    ),
+    full_page: bool = typer.Option(True, "--full-page/--viewport", help="Full page or viewport"),
+    fmt: str = typer.Option("png", "--format", "-f", help="Image format: png, jpeg"),
+    quality: Optional[int] = typer.Option(None, "--quality", "-q", help="JPEG quality (1-100)"),
+    width: int = typer.Option(1920, "--width", help="Viewport width"),
+    height: int = typer.Option(1080, "--height", help="Viewport height"),
+    wait: Optional[str] = typer.Option(None, "--wait", help="Wait condition before capture"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile"),
+    session: Optional[str] = typer.Option(None, "--session", help="Session name"),
+) -> None:
+    """Capture a screenshot of a web page.
+
+    Examples:
+        site2cli screenshot https://example.com
+        site2cli screenshot https://example.com -o page.png
+        site2cli screenshot https://example.com --selector ".main-content"
+        site2cli screenshot https://example.com --viewport --format jpeg --quality 80
+    """
+    from site2cli.config import get_config
+    from site2cli.screenshot.capture import take_screenshot
+
+    config = get_config()
+    proxy_dict = None
+    if proxy:
+        config.proxy.url = proxy
+        proxy_dict = config.proxy.get_playwright_proxy()
+    elif config.proxy.get_proxy_url():
+        proxy_dict = config.proxy.get_playwright_proxy()
+
+    with console.status("[bold green]Capturing screenshot..."):
+        result = _run_async(take_screenshot(
+            url=url,
+            output=output,
+            selector=selector,
+            full_page=full_page,
+            fmt=fmt,
+            quality=quality,
+            width=width,
+            height=height,
+            wait=wait,
+            proxy=proxy_dict,
+            profile=profile,
+            session=session,
+        ))
+
+    console.print(f"[green]Screenshot saved to[/green] [bold]{result.path}[/bold]")
+    console.print(f"[dim]{result.width}x{result.height}, {result.format}[/dim]")
+
+
 # --- Site Management Commands ---
 
 sites_app = typer.Typer(help="Manage discovered sites")

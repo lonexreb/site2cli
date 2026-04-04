@@ -281,3 +281,120 @@ class OrchestrationResult(BaseModel):
     step_results: list[StepResult] = Field(default_factory=list)
     total_duration_ms: float = 0.0
     started_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# --- Crawl models ---
+
+
+class CrawlStatus(str, enum.Enum):
+    """Status of a crawl job."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class CrawlPage(BaseModel):
+    """A single crawled page."""
+
+    url: str
+    depth: int = 0
+    status_code: int = 0
+    content_type: str = ""
+    title: str = ""
+    content: str = ""
+    content_hash: str = ""
+    links_found: int = 0
+    crawled_at: datetime = Field(default_factory=datetime.utcnow)
+    error: str | None = None
+
+
+class CrawlJob(BaseModel):
+    """State of a crawl session, persisted for resume."""
+
+    id: str
+    start_url: str
+    domain: str
+    max_depth: int = 3
+    max_pages: int = 100
+    status: CrawlStatus = CrawlStatus.PENDING
+    pages_crawled: int = 0
+    pages_total: int = 0
+    output_format: str = "markdown"
+    main_content_only: bool = True
+    respect_robots: bool = True
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: datetime | None = None
+    error: str | None = None
+
+
+# --- Monitor models ---
+
+
+class MonitorWatch(BaseModel):
+    """A monitored URL configuration."""
+
+    id: str
+    url: str
+    interval_seconds: int = 3600
+    webhook_url: str | None = None
+    output_format: str = "diff"
+    main_content_only: bool = True
+    active: bool = True
+    last_checked: datetime | None = None
+    last_changed: datetime | None = None
+    check_count: int = 0
+    change_count: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MonitorSnapshot(BaseModel):
+    """A point-in-time snapshot of a URL's content."""
+
+    id: str
+    watch_id: str
+    url: str
+    content_hash: str
+    content_text: str = ""
+    status_code: int = 0
+    captured_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DiffLine(BaseModel):
+    """A single line of diff output."""
+
+    operation: str  # "add", "remove", "unchanged"
+    line_number: int = 0
+    content: str = ""
+
+
+class MonitorDiff(BaseModel):
+    """Diff result between two snapshots."""
+
+    watch_id: str
+    url: str
+    changed: bool
+    old_snapshot_id: str | None = None
+    new_snapshot_id: str | None = None
+    added_lines: int = 0
+    removed_lines: int = 0
+    diff_lines: list[DiffLine] = Field(default_factory=list)
+    computed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# --- Screenshot models ---
+
+
+class ScreenshotResult(BaseModel):
+    """Result of a screenshot capture."""
+
+    url: str
+    path: str
+    width: int = 0
+    height: int = 0
+    format: str = "png"
+    full_page: bool = True
+    selector: str | None = None
+    captured_at: datetime = Field(default_factory=datetime.utcnow)

@@ -89,6 +89,25 @@ class BrowserConfig(BaseModel):
     session: str | None = None
 
 
+class CrawlConfig(BaseModel):
+    """Crawl configuration defaults."""
+
+    max_depth: int = 3
+    max_pages: int = 100
+    concurrent_requests: int = 5
+    delay_ms: int = 100
+    respect_robots: bool = True
+    user_agent: str = "site2cli/0.6.0 (+https://github.com/lonexreb/site2cli)"
+
+
+class MonitorConfig(BaseModel):
+    """Monitor configuration defaults."""
+
+    default_interval_seconds: int = 3600
+    max_snapshot_history: int = 50
+    normalize_whitespace: bool = True
+
+
 class Config(BaseModel):
     """Top-level site2cli configuration."""
 
@@ -96,6 +115,8 @@ class Config(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
+    crawl: CrawlConfig = Field(default_factory=CrawlConfig)
+    monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     log_level: str = "INFO"
 
     @property
@@ -119,6 +140,14 @@ class Config(BaseModel):
         return self.data_dir / "profiles"
 
     @property
+    def screenshots_dir(self) -> Path:
+        return self.data_dir / "screenshots"
+
+    @property
+    def crawl_dir(self) -> Path:
+        return self.data_dir / "crawls"
+
+    @property
     def daemon_socket_path(self) -> Path:
         return self.data_dir / "daemon.sock"
 
@@ -133,6 +162,8 @@ class Config(BaseModel):
             self.clients_dir,
             self.workflows_dir,
             self.profiles_dir,
+            self.screenshots_dir,
+            self.crawl_dir,
         ]:
             d.mkdir(parents=True, exist_ok=True)
 

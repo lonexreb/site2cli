@@ -8,7 +8,12 @@ from pathlib import Path
 
 from site2cli.models import (
     AuthType,
+    CrawlJob,
+    CrawlPage,
+    CrawlStatus,
     HealthStatus,
+    MonitorSnapshot,
+    MonitorWatch,
     OrchestrationPipeline,
     RecordedWorkflow,
     SiteAction,
@@ -85,6 +90,65 @@ class SiteRegistry:
                 updated_at TEXT NOT NULL,
                 run_count INTEGER DEFAULT 0,
                 last_run TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS crawl_jobs (
+                id TEXT PRIMARY KEY,
+                start_url TEXT NOT NULL,
+                domain TEXT NOT NULL,
+                max_depth INTEGER DEFAULT 3,
+                max_pages INTEGER DEFAULT 100,
+                status TEXT DEFAULT 'pending',
+                pages_crawled INTEGER DEFAULT 0,
+                pages_total INTEGER DEFAULT 0,
+                output_format TEXT DEFAULT 'markdown',
+                main_content_only INTEGER DEFAULT 1,
+                respect_robots INTEGER DEFAULT 1,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                error TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS crawl_pages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                url TEXT NOT NULL,
+                depth INTEGER DEFAULT 0,
+                status_code INTEGER DEFAULT 0,
+                content_type TEXT DEFAULT '',
+                title TEXT DEFAULT '',
+                content_hash TEXT DEFAULT '',
+                links_found INTEGER DEFAULT 0,
+                crawled_at TEXT NOT NULL,
+                error TEXT,
+                FOREIGN KEY (job_id) REFERENCES crawl_jobs(id),
+                UNIQUE(job_id, url)
+            );
+
+            CREATE TABLE IF NOT EXISTS monitor_watches (
+                id TEXT PRIMARY KEY,
+                url TEXT NOT NULL,
+                interval_seconds INTEGER DEFAULT 3600,
+                webhook_url TEXT,
+                output_format TEXT DEFAULT 'diff',
+                main_content_only INTEGER DEFAULT 1,
+                active INTEGER DEFAULT 1,
+                last_checked TEXT,
+                last_changed TEXT,
+                check_count INTEGER DEFAULT 0,
+                change_count INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS monitor_snapshots (
+                id TEXT PRIMARY KEY,
+                watch_id TEXT NOT NULL,
+                url TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                content_text TEXT DEFAULT '',
+                status_code INTEGER DEFAULT 0,
+                captured_at TEXT NOT NULL,
+                FOREIGN KEY (watch_id) REFERENCES monitor_watches(id)
             );
         """)
 
@@ -373,6 +437,223 @@ class SiteRegistry:
             (datetime.utcnow().isoformat(), pipeline_id),
         )
         self.conn.commit()
+
+    # --- Crawl CRUD ---
+
+    def save_crawl_job(self, job: CrawlJob) -> None:
+        self.conn.execute(
+            """INSERT OR REPLACE INTO crawl_jobs
+               (id, start_url, domain, max_depth, max_pages, status,
+                pages_crawled, pages_total, output_format, main_content_only,
+                respect_robots, started_at, completed_at, error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                job.id,
+                job.start_url,
+                job.domain,
+                job.max_depth,
+                job.max_pages,
+                job.status.value,
+                job.pages_crawled,
+                job.pages_total,
+                job.output_format,
+                1 if job.main_content_only else 0,
+                1 if job.respect_robots else 0,
+                job.started_at.isoformat(),
+                job.completed_at.isoformat() if job.completed_at else None,
+                job.error,
+            ),
+        )
+        self.conn.commit()
+
+    def get_crawl_job(self, job_id: str) -> CrawlJob | None:
+        row = self.conn.execute(
+            "SELECT * FROM crawl_jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+        if not row:
+            return None
+        return CrawlJob(
+            id=row["id"],
+            start_url=row["start_url"],
+            domain=row["domain"],
+            max_depth=row["max_depth"],
+            max_pages=row["max_pages"],
+            status=CrawlStatus(row["status"]),
+            pages_crawled=row["pages_crawled"],
+            pages_total=row["pages_total"],
+            output_format=row["output_format"],
+            main_content_only=bool(row["main_content_only"]),
+            respect_robots=bool(row["respect_robots"]),
+            started_at=datetime.fromisoformat(row["started_at"]),
+            completed_at=(
+                datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None
+            ),
+            error=row["error"],
+        )
+
+    def save_crawl_page(self, job_id: str, page: CrawlPage) -> None:
+        self.conn.execute(
+            """INSERT OR REPLACE INTO crawl_pages
+               (job_id, url, depth, status_code, content_type, title,
+                content_hash, links_found, crawled_at, error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                job_id,
+                page.url,
+                page.depth,
+                page.status_code,
+                page.content_type,
+                page.title,
+                page.content_hash,
+                page.links_found,
+                page.crawled_at.isoformat(),
+                page.error,
+            ),
+        )
+        self.conn.commit()
+
+    def get_crawled_urls(self, job_id: str) -> set[str]:
+        rows = self.conn.execute(
+            "SELECT url FROM crawl_pages WHERE job_id = ?", (job_id,)
+        ).fetchall()
+        return {row["url"] for row in rows}
+
+    def list_crawl_jobs(self, domain: str | None = None) -> list[CrawlJob]:
+        if domain:
+            rows = self.conn.execute(
+                "SELECT id FROM crawl_jobs WHERE domain = ? ORDER BY started_at DESC",
+                (domain,),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT id FROM crawl_jobs ORDER BY started_at DESC"
+            ).fetchall()
+        return [self.get_crawl_job(row["id"]) for row in rows if self.get_crawl_job(row["id"])]
+
+    # --- Monitor CRUD ---
+
+    def save_monitor_watch(self, watch: MonitorWatch) -> None:
+        self.conn.execute(
+            """INSERT OR REPLACE INTO monitor_watches
+               (id, url, interval_seconds, webhook_url, output_format,
+                main_content_only, active, last_checked, last_changed,
+                check_count, change_count, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                watch.id,
+                watch.url,
+                watch.interval_seconds,
+                watch.webhook_url,
+                watch.output_format,
+                1 if watch.main_content_only else 0,
+                1 if watch.active else 0,
+                watch.last_checked.isoformat() if watch.last_checked else None,
+                watch.last_changed.isoformat() if watch.last_changed else None,
+                watch.check_count,
+                watch.change_count,
+                watch.created_at.isoformat(),
+            ),
+        )
+        self.conn.commit()
+
+    def get_monitor_watch(self, watch_id: str) -> MonitorWatch | None:
+        row = self.conn.execute(
+            "SELECT * FROM monitor_watches WHERE id = ?", (watch_id,)
+        ).fetchone()
+        if not row:
+            return None
+        return MonitorWatch(
+            id=row["id"],
+            url=row["url"],
+            interval_seconds=row["interval_seconds"],
+            webhook_url=row["webhook_url"],
+            output_format=row["output_format"],
+            main_content_only=bool(row["main_content_only"]),
+            active=bool(row["active"]),
+            last_checked=(
+                datetime.fromisoformat(row["last_checked"]) if row["last_checked"] else None
+            ),
+            last_changed=(
+                datetime.fromisoformat(row["last_changed"]) if row["last_changed"] else None
+            ),
+            check_count=row["check_count"],
+            change_count=row["change_count"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    def list_monitor_watches(self, active_only: bool = True) -> list[MonitorWatch]:
+        if active_only:
+            rows = self.conn.execute(
+                "SELECT id FROM monitor_watches WHERE active = 1 ORDER BY created_at DESC"
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT id FROM monitor_watches ORDER BY created_at DESC"
+            ).fetchall()
+        watches = [self.get_monitor_watch(row["id"]) for row in rows]
+        return [w for w in watches if w is not None]
+
+    def delete_monitor_watch(self, watch_id: str) -> bool:
+        self.conn.execute(
+            "DELETE FROM monitor_snapshots WHERE watch_id = ?", (watch_id,)
+        )
+        cursor = self.conn.execute(
+            "DELETE FROM monitor_watches WHERE id = ?", (watch_id,)
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def save_monitor_snapshot(self, snapshot: MonitorSnapshot) -> None:
+        self.conn.execute(
+            """INSERT INTO monitor_snapshots
+               (id, watch_id, url, content_hash, content_text, status_code, captured_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                snapshot.id,
+                snapshot.watch_id,
+                snapshot.url,
+                snapshot.content_hash,
+                snapshot.content_text,
+                snapshot.status_code,
+                snapshot.captured_at.isoformat(),
+            ),
+        )
+        self.conn.commit()
+
+    def get_latest_snapshot(self, watch_id: str) -> MonitorSnapshot | None:
+        row = self.conn.execute(
+            "SELECT * FROM monitor_snapshots WHERE watch_id = ? ORDER BY captured_at DESC LIMIT 1",
+            (watch_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return MonitorSnapshot(
+            id=row["id"],
+            watch_id=row["watch_id"],
+            url=row["url"],
+            content_hash=row["content_hash"],
+            content_text=row["content_text"],
+            status_code=row["status_code"],
+            captured_at=datetime.fromisoformat(row["captured_at"]),
+        )
+
+    def get_snapshot_history(self, watch_id: str, limit: int = 10) -> list[MonitorSnapshot]:
+        rows = self.conn.execute(
+            "SELECT * FROM monitor_snapshots WHERE watch_id = ? ORDER BY captured_at DESC LIMIT ?",
+            (watch_id, limit),
+        ).fetchall()
+        return [
+            MonitorSnapshot(
+                id=row["id"],
+                watch_id=row["watch_id"],
+                url=row["url"],
+                content_hash=row["content_hash"],
+                content_text=row["content_text"],
+                status_code=row["status_code"],
+                captured_at=datetime.fromisoformat(row["captured_at"]),
+            )
+            for row in rows
+        ]
 
     def close(self) -> None:
         if self._conn:
