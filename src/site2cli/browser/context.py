@@ -56,6 +56,9 @@ async def create_browser_context(
     browser: Browser | None = None
 
     try:
+        # Resolve proxy settings
+        proxy_config = config.proxy.get_playwright_proxy()
+
         if profile:
             # Profile mode: launch_persistent_context with user data dir
             from site2cli.auth.profiles import ProfileManager
@@ -64,17 +67,23 @@ async def create_browser_context(
             profile_path = pm.get_profile_path(profile)
             if not profile_path:
                 raise ValueError(f"Profile '{profile}' not found. Import one first.")
-            context = await pw.chromium.launch_persistent_context(
-                user_data_dir=str(profile_path),
-                headless=config.browser.headless,
-                viewport={"width": 1920, "height": 1080},
-                user_agent=_DEFAULT_UA if config.browser.stealth else None,
-            )
+            launch_kwargs: dict[str, Any] = {
+                "user_data_dir": str(profile_path),
+                "headless": config.browser.headless,
+                "viewport": {"width": 1920, "height": 1080},
+                "user_agent": _DEFAULT_UA if config.browser.stealth else None,
+            }
+            if proxy_config:
+                launch_kwargs["proxy"] = proxy_config
+            context = await pw.chromium.launch_persistent_context(**launch_kwargs)
             browser = None  # persistent context owns the browser
             page = context.pages[0] if context.pages else await context.new_page()
         else:
             # Normal mode: launch + new_context
-            browser = await pw.chromium.launch(headless=config.browser.headless)
+            launch_kwargs = {"headless": config.browser.headless}
+            if proxy_config:
+                launch_kwargs["proxy"] = proxy_config
+            browser = await pw.chromium.launch(**launch_kwargs)
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent=_DEFAULT_UA if config.browser.stealth else None,

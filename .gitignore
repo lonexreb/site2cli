@@ -16,3 +16,4 @@ venv/
 *.sqlite3
 PyPI-Recovery-Codes-*.txt
 *.cookies.json
+.claude/

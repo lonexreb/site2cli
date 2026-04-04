@@ -70,6 +70,7 @@ def discover(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Output spec to file"),
     profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile to use"),
     session: Optional[str] = typer.Option(None, "--session", help="Session name to reuse"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for requests"),
 ) -> None:
     """Discover API endpoints for a website by capturing network traffic."""
     from site2cli.config import get_config
@@ -96,6 +97,8 @@ def discover(
         config.browser.profile = profile
     if session:
         config.browser.session = session
+    if proxy:
+        config.proxy.url = proxy
 
     console.print(f"[bold]Discovering APIs for[/bold] {domain}...")
 
@@ -214,8 +217,12 @@ def run(
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Limit array results"),
     keys_only: bool = typer.Option(False, "--keys-only", help="Show only top-level keys"),
     compact: bool = typer.Option(False, "--compact", help="Single-line JSON"),
+    output_format: Optional[str] = typer.Option(
+        None, "--format", "-f", help="Output format: json, markdown, text"
+    ),
     profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile to use"),
     session: Optional[str] = typer.Option(None, "--session", help="Session name to reuse"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for requests"),
 ) -> None:
     """Execute a discovered action on a site."""
     from site2cli.router import Router
@@ -227,6 +234,8 @@ def run(
         config.browser.profile = profile
     if session:
         config.browser.session = session
+    if proxy:
+        config.proxy.url = proxy
 
     registry = _get_registry()
     router = Router(registry)
@@ -248,13 +257,154 @@ def run(
 
         result = filter_result(result, grep=grep, limit=limit, keys_only=keys_only)
 
-    indent = None if compact else 2
-    if json_output or compact:
-        console.print(json.dumps(result, indent=indent, default=str))
+    # Format-specific output
+    if output_format == "markdown":
+        text = json.dumps(result, indent=2, default=str)
+        console.print(text)
+    elif output_format == "text":
+        text = json.dumps(result, indent=2, default=str)
+        console.print(text)
     else:
+        indent = None if compact else 2
+        if json_output or compact:
+            console.print(json.dumps(result, indent=indent, default=str))
+        else:
+            from rich.json import JSON
+
+            console.print(JSON(json.dumps(result, indent=2, default=str)))
+
+
+# --- Extract & Scrape Commands ---
+
+
+@app.command()
+def extract(
+    url: str = typer.Argument(help="URL to extract structured data from"),
+    urls: Optional[list[str]] = typer.Option(
+        None, "--url", "-u", help="Additional URLs to extract from"
+    ),
+    prompt: Optional[str] = typer.Option(
+        None, "--prompt", "-p", help="What data to extract (natural language)"
+    ),
+    schema: Optional[str] = typer.Option(
+        None, "--schema", "-s",
+        help="JSON Schema: inline JSON, .json file path, or Pydantic model (module.Class)",
+    ),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Save result to file"),
+    compact: bool = typer.Option(False, "--compact", help="Single-line JSON output"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
+    main_content: bool = typer.Option(
+        True, "--main-content/--full-page", help="Extract main content only"
+    ),
+) -> None:
+    """Extract structured data from a web page using LLM + schema validation.
+
+    Like Firecrawl /extract but local, free, and schema-driven.
+
+    Examples:
+        site2cli extract https://example.com -p "Extract the page title and description"
+        site2cli extract https://example.com -s schema.json
+        site2cli extract https://example.com -s schema.json -p "Get all product prices"
+    """
+    from site2cli.extract.extractor import extract as do_extract
+    from site2cli.extract.extractor import extract_batch
+
+    all_urls = [url] + (urls or [])
+
+    async def _extract():
+        if len(all_urls) == 1:
+            return await do_extract(
+                all_urls[0],
+                prompt=prompt,
+                schema=schema,
+                main_content_only=main_content,
+                proxy=proxy,
+            )
+        else:
+            results = await extract_batch(
+                all_urls, prompt=prompt, schema=schema,
+                main_content_only=main_content, proxy=proxy,
+            )
+            return results
+
+    with console.status("[bold green]Extracting structured data..."):
+        result = _run_async(_extract())
+
+    # Handle single vs batch results
+    if isinstance(result, list):
+        output_data = [r.model_dump(mode="json") for r in result]
+        successes = sum(1 for r in result if r.success)
+        console.print(
+            f"[bold]Extracted from {successes}/{len(result)} URLs[/bold]"
+        )
+    else:
+        output_data = result.model_dump(mode="json")
+        if result.success:
+            console.print("[bold green]Extraction successful[/bold green]")
+            if result.usage:
+                tokens = result.usage.get("input_tokens", 0) + result.usage.get("output_tokens", 0)
+                console.print(f"  Tokens used: {tokens}")
+        else:
+            console.print(f"[bold red]Extraction failed:[/bold red] {result.error}")
+
+    # Output
+    if output:
+        Path(output).write_text(json.dumps(output_data, indent=2, default=str))
+        console.print(f"  Saved to [bold]{output}[/bold]")
+    else:
+        # Show just the data for clean output
+        if isinstance(result, list):
+            display = [r.data for r in result if r.success]
+        else:
+            display = result.data if result.success else output_data
         from rich.json import JSON
 
-        console.print(JSON(json.dumps(result, indent=2, default=str)))
+        console.print(JSON(json.dumps(display, indent=2, default=str)))
+
+
+@app.command()
+def scrape(
+    url: str = typer.Argument(help="URL to scrape"),
+    output_format: str = typer.Option(
+        "markdown", "--format", "-f", help="Output format: markdown, text, html"
+    ),
+    main_content: bool = typer.Option(
+        True, "--main-content/--full-page", help="Extract main content only"
+    ),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Save to file"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile for auth"),
+) -> None:
+    """Scrape a web page and convert to markdown, text, or HTML.
+
+    Examples:
+        site2cli scrape https://example.com
+        site2cli scrape https://example.com --format text
+        site2cli scrape https://example.com --format html --full-page
+    """
+    from site2cli.content.converter import fetch_and_convert
+
+    with console.status("[bold green]Fetching and converting..."):
+        result = fetch_and_convert(
+            url,
+            output_format=output_format,
+            main_content_only=main_content,
+            proxy=proxy,
+        )
+
+    content = result["content"]
+    console.print(f"[dim]Source: {result['url']} ({result['status_code']})[/dim]\n")
+
+    if output:
+        Path(output).write_text(content)
+        console.print(f"Saved to [bold]{output}[/bold] ({len(content)} chars)")
+    else:
+        if output_format == "markdown":
+            from rich.markdown import Markdown
+
+            console.print(Markdown(content))
+        else:
+            console.print(content)
 
 
 # --- Site Management Commands ---

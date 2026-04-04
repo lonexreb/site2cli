@@ -109,11 +109,16 @@ class DirectAPIExecutor:
         headers = self._auth.get_auth_headers(site.domain, site.auth_type)
         cookies = self._auth.get_auth_cookies(site.domain)
 
-        async with httpx.AsyncClient(
-            headers=headers,
-            cookies=cookies,
-            timeout=30,
-        ) as client:
+        client_kwargs: dict = {
+            "headers": headers,
+            "cookies": cookies,
+            "timeout": 30,
+        }
+        proxy_url = self._config.proxy.get_httpx_proxy()
+        if proxy_url:
+            client_kwargs["proxy"] = proxy_url
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
             response = await client.request(
                 endpoint.method,
                 url,

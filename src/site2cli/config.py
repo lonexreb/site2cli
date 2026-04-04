@@ -38,6 +38,44 @@ class LLMConfig(BaseModel):
         return key
 
 
+class ProxyConfig(BaseModel):
+    """Proxy configuration for browser and HTTP requests."""
+
+    url: str | None = None  # e.g., "http://user:pass@proxy.example.com:8080"
+    server: str | None = None  # proxy server (alternative to url)
+    username: str | None = None
+    password: str | None = None
+    bypass: list[str] = Field(default_factory=list)  # domains to skip proxy
+
+    def get_proxy_url(self) -> str | None:
+        """Build the full proxy URL."""
+        if self.url:
+            return self.url
+        if self.server:
+            if self.username and self.password:
+                # Insert credentials into server URL
+                if "://" in self.server:
+                    scheme, rest = self.server.split("://", 1)
+                    return f"{scheme}://{self.username}:{self.password}@{rest}"
+                return f"http://{self.username}:{self.password}@{self.server}"
+            return self.server
+        return None
+
+    def get_playwright_proxy(self) -> dict | None:
+        """Get proxy config in Playwright format."""
+        url = self.get_proxy_url()
+        if not url:
+            return None
+        proxy: dict = {"server": url}
+        if self.bypass:
+            proxy["bypass"] = ",".join(self.bypass)
+        return proxy
+
+    def get_httpx_proxy(self) -> str | None:
+        """Get proxy URL for httpx."""
+        return self.get_proxy_url()
+
+
 class BrowserConfig(BaseModel):
     """Browser automation configuration."""
 
@@ -57,6 +95,7 @@ class Config(BaseModel):
     data_dir: Path = Field(default_factory=_default_data_dir)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
+    proxy: ProxyConfig = Field(default_factory=ProxyConfig)
     log_level: str = "INFO"
 
     @property
