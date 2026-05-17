@@ -138,14 +138,26 @@ def generate_openapi_spec(api: DiscoveredAPI) -> dict:
 
 
 def save_spec(spec: dict, output_path: Path) -> Path:
-    """Save an OpenAPI spec to a JSON file."""
+    """Save an OpenAPI spec to JSON or YAML based on file extension."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w") as f:
-        json.dump(spec, f, indent=2)
+    suffix = output_path.suffix.lower()
+    if suffix in (".yaml", ".yml"):
+        import yaml
+
+        with open(output_path, "w") as f:
+            yaml.safe_dump(spec, f, sort_keys=False)
+    else:
+        with open(output_path, "w") as f:
+            json.dump(spec, f, indent=2)
     return output_path
 
 
 def load_spec(spec_path: Path) -> dict:
-    """Load an OpenAPI spec from a JSON file."""
-    with open(spec_path) as f:
-        return json.load(f)
+    """Load an OpenAPI spec from a JSON or YAML file."""
+    suffix = spec_path.suffix.lower()
+    text = Path(spec_path).read_text()
+    if suffix in (".yaml", ".yml"):
+        import yaml
+
+        return yaml.safe_load(text)
+    return json.loads(text)

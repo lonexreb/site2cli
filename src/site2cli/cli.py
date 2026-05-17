@@ -67,17 +67,28 @@ def discover(
     ),
     headless: bool = typer.Option(True, help="Run browser in headless mode"),
     enhance: bool = typer.Option(True, help="Use LLM to enhance discovered endpoints"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output spec to file"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output spec to file (.json/.yaml)"),
     profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile to use"),
     session: Optional[str] = typer.Option(None, "--session", help="Session name to reuse"),
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for requests"),
+    replay: Optional[str] = typer.Option(None, "--replay", help="Replay from a saved trace JSON instead of capturing"),
+    save_trace_path: Optional[str] = typer.Option(None, "--save-trace", help="Save raw captured exchanges to a trace JSON file"),
+    report: Optional[str] = typer.Option(None, "--report", help="Write HTML coverage report to this path"),
+    js_client: Optional[str] = typer.Option(None, "--js-client", help="Write JS ES-module client (client.mjs) to this path"),
+    spec_format: str = typer.Option("json", "--spec-format", help="Spec output format: json or yaml"),
 ) -> None:
     """Discover API endpoints for a website by capturing network traffic."""
     from site2cli.config import get_config
     from site2cli.discovery.analyzer import TrafficAnalyzer
     from site2cli.discovery.capture import TrafficCapture
     from site2cli.discovery.client_generator import generate_client_code, save_client
+    from site2cli.discovery.coverage_report import save_report
+    from site2cli.discovery.js_client_generator import (
+        generate_js_client,
+        save_js_client,
+    )
     from site2cli.discovery.spec_generator import generate_openapi_spec, save_spec
+    from site2cli.discovery.trace import load_trace, save_trace
     from site2cli.models import (
         DiscoveredAPI,
         SiteAction,
@@ -102,22 +113,32 @@ def discover(
 
     console.print(f"[bold]Discovering APIs for[/bold] {domain}...")
 
-    # Step 1: Capture traffic
+    # Step 1: Capture traffic (or replay from a saved trace)
     capture = TrafficCapture(target_domain=domain)
 
-    async def do_capture():
-        goal = action or "explore the main features"
-        if action:
-            from site2cli.tiers.browser_explorer import BrowserExplorer
+    if replay:
+        trace = load_trace(Path(replay))
+        exchanges = trace.exchanges
+        console.print(f"  Replaying [bold]{len(exchanges)}[/bold] exchanges from {replay}")
+    else:
+        async def do_capture():
+            goal = action or "explore the main features"
+            if action:
+                from site2cli.tiers.browser_explorer import BrowserExplorer
 
-            explorer = BrowserExplorer()
-            result = await explorer.explore(url, goal)
-            return result.get("exchanges", [])
-        else:
-            return await capture.capture_page_traffic(url, duration_seconds=15)
+                explorer = BrowserExplorer()
+                result = await explorer.explore(url, goal)
+                return result.get("exchanges", [])
+            else:
+                return await capture.capture_page_traffic(url, duration_seconds=15)
 
-    with console.status("[bold green]Launching browser and capturing traffic..."):
-        exchanges = _run_async(do_capture())
+        with console.status("[bold green]Launching browser and capturing traffic..."):
+            exchanges = _run_async(do_capture())
+
+    if save_trace_path:
+        trace_out = Path(save_trace_path)
+        save_trace(exchanges, trace_out, site_url=url, target_domain=domain)
+        console.print(f"  Saved trace to [bold]{trace_out}[/bold]")
 
     api_exchanges = [
         ex for ex in exchanges if capture._is_api_like(ex.request.url, ex.response.content_type)
@@ -156,15 +177,37 @@ def discover(
     spec = generate_openapi_spec(api)
 
     # Save spec
-    spec_path = Path(output) if output else config.specs_dir / f"{domain}.json"
+    if output:
+        spec_path = Path(output)
+    else:
+        ext = "yaml" if spec_format.lower() in ("yaml", "yml") else "json"
+        spec_path = config.specs_dir / f"{domain}.{ext}"
     save_spec(spec, spec_path)
     console.print(f"  Saved OpenAPI spec to [bold]{spec_path}[/bold]")
 
-    # Step 5: Generate client
+    # Step 5: Generate Python client
     client_code = generate_client_code(spec)
     client_path = config.clients_dir / f"{domain.replace('.', '_')}_client.py"
     save_client(client_code, client_path)
-    console.print(f"  Generated client at [bold]{client_path}[/bold]")
+    console.print(f"  Generated Python client at [bold]{client_path}[/bold]")
+
+    # Step 5b: Generate JS client (.mjs)
+    js_path = (
+        Path(js_client)
+        if js_client
+        else config.clients_dir / f"{domain.replace('.', '_')}_client.mjs"
+    )
+    save_js_client(generate_js_client(spec), js_path)
+    console.print(f"  Generated JS client at [bold]{js_path}[/bold]")
+
+    # Step 5c: HTML coverage report
+    report_path = (
+        Path(report)
+        if report
+        else config.specs_dir / f"{domain}.report.html"
+    )
+    save_report(api, report_path, api_exchanges)
+    console.print(f"  Wrote coverage report to [bold]{report_path}[/bold]")
 
     # Step 6: Register site
     registry = _get_registry()
@@ -407,6 +450,183 @@ def scrape(
             console.print(content)
 
 
+# --- Search, Chunk & PDF Commands ---
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(help="Search query"),
+    max_results: int = typer.Option(5, "--limit", "-n", help="Number of results"),
+    scrape: bool = typer.Option(False, "--scrape", help="Scrape content from results"),
+    extract_data: bool = typer.Option(
+        False, "--extract", help="Extract structured data from results"
+    ),
+    prompt: Optional[str] = typer.Option(
+        None, "--prompt", "-p", help="Extraction prompt (with --extract)"
+    ),
+    schema: Optional[str] = typer.Option(
+        None, "--schema", "-s", help="JSON Schema (with --extract)"
+    ),
+    output_format: Optional[str] = typer.Option(
+        "markdown", "--format", "-f", help="Content format: markdown, text"
+    ),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Save to file"),
+    proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
+    chunk: Optional[str] = typer.Option(
+        None, "--chunk", help="Chunk results: fixed, sentence, heading"
+    ),
+    chunk_size: int = typer.Option(1000, "--chunk-size", help="Chunk size in chars"),
+) -> None:
+    """Search the web and optionally scrape/extract results.
+
+    Examples:
+        site2cli search "Python web scraping 2026"
+        site2cli search "pricing plans" --scrape --format markdown
+        site2cli search "restaurant reviews" --extract -p "name, rating, price"
+        site2cli search "API docs" --scrape --chunk heading -o chunks.jsonl
+    """
+    from site2cli.search.engine import (
+        search_and_extract,
+        search_and_scrape,
+        search_duckduckgo,
+    )
+
+    if extract_data:
+        with console.status("[bold green]Searching and extracting..."):
+            results = _run_async(search_and_extract(
+                query, prompt=prompt, schema=schema,
+                max_results=max_results, proxy=proxy,
+            ))
+        successes = sum(1 for r in results if r.get("success"))
+        console.print(
+            f"[bold]Extracted from {successes}/{len(results)} results[/bold]"
+        )
+        from rich.json import JSON
+
+        console.print(JSON(json.dumps(results, indent=2, default=str)))
+    elif scrape:
+        with console.status("[bold green]Searching and scraping..."):
+            results = _run_async(search_and_scrape(
+                query, max_results=max_results,
+                output_format=output_format or "markdown",
+                proxy=proxy,
+            ))
+
+        if chunk:
+            from site2cli.content.chunker import chunk_text
+
+            all_chunks = []
+            for r in results:
+                if r.content:
+                    chunks = chunk_text(
+                        r.content, strategy=chunk,
+                        chunk_size=chunk_size,
+                        url=r.url, title=r.title,
+                    )
+                    all_chunks.extend(chunks)
+            console.print(
+                f"[bold]{len(all_chunks)} chunks from {len(results)} results[/bold]"
+            )
+            output_data = [c.to_dict() for c in all_chunks]
+        else:
+            output_data = [r.to_dict() for r in results]
+            console.print(f"[bold]{len(results)} results scraped[/bold]")
+
+        if output:
+            Path(output).write_text(
+                "\n".join(
+                    json.dumps(d, default=str) for d in output_data
+                )
+            )
+            console.print(f"Saved to [bold]{output}[/bold]")
+        else:
+            from rich.json import JSON
+
+            console.print(JSON(json.dumps(output_data, indent=2, default=str)))
+    else:
+        # Search only — show results
+        with console.status("[bold green]Searching..."):
+            results = _run_async(search_duckduckgo(
+                query, max_results=max_results,
+            ))
+        table = Table(title=f"Search: {query}")
+        table.add_column("#", style="dim", width=3)
+        table.add_column("Title", style="bold")
+        table.add_column("URL", style="dim")
+        for i, r in enumerate(results, 1):
+            table.add_row(str(i), r.title[:60], r.url[:60])
+        console.print(table)
+
+        if output:
+            data = [r.to_dict() for r in results]
+            Path(output).write_text(json.dumps(data, indent=2, default=str))
+            console.print(f"Saved to [bold]{output}[/bold]")
+
+
+@app.command()
+def chunk(
+    input_file: str = typer.Argument(help="Input file (text, markdown, or PDF)"),
+    strategy: str = typer.Option(
+        "fixed", "--strategy", "-s", help="Chunking: fixed, sentence, heading"
+    ),
+    chunk_size: int = typer.Option(1000, "--size", help="Target chunk size in chars"),
+    overlap: int = typer.Option(200, "--overlap", help="Overlap for fixed strategy"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Save JSONL output"),
+    url: Optional[str] = typer.Option(None, "--url", help="Source URL for metadata"),
+    title: Optional[str] = typer.Option(None, "--title", help="Source title for metadata"),
+) -> None:
+    """Chunk a file into pieces for RAG pipelines.
+
+    Outputs JSONL with metadata (index, total, url, title, section).
+
+    Examples:
+        site2cli chunk document.md --strategy heading -o chunks.jsonl
+        site2cli chunk report.pdf --strategy sentence --size 500
+        site2cli chunk page.txt --strategy fixed --size 1000 --overlap 200
+    """
+    from site2cli.content.chunker import chunk_text
+
+    input_path = Path(input_file)
+    if not input_path.exists():
+        console.print(f"[red]File not found: {input_file}[/red]")
+        raise typer.Exit(1)
+
+    # Read content — handle PDF
+    if input_path.suffix.lower() == ".pdf":
+        from site2cli.content.pdf import pdf_to_markdown
+
+        content = pdf_to_markdown(input_path)
+    else:
+        content = input_path.read_text()
+
+    chunks = chunk_text(
+        content,
+        strategy=strategy,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        url=url or "",
+        title=title or input_path.stem,
+    )
+
+    console.print(
+        f"[bold]{len(chunks)} chunks[/bold]"
+        f" ({strategy}, {chunk_size} chars)"
+    )
+
+    if output:
+        with open(output, "w") as f:
+            for c in chunks:
+                f.write(json.dumps(c.to_dict(), default=str) + "\n")
+        console.print(f"Saved to [bold]{output}[/bold]")
+    else:
+        for c in chunks:
+            console.print(
+                f"[dim]--- chunk {c.index + 1}/{c.total}"
+                f" ({len(c.text)} chars) ---[/dim]"
+            )
+            console.print(c.text[:200] + ("..." if len(c.text) > 200 else ""))
+
+
 # --- Crawl, Monitor & Screenshot Commands ---
 
 
@@ -429,6 +649,13 @@ def crawl(
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL"),
     profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile"),
     session: Optional[str] = typer.Option(None, "--session", help="Session name"),
+    rag: bool = typer.Option(
+        False, "--rag", help="Output chunked JSONL for RAG pipelines"
+    ),
+    chunk_strategy: Optional[str] = typer.Option(
+        None, "--chunk", help="Chunking strategy: fixed, sentence, heading"
+    ),
+    chunk_size: int = typer.Option(1000, "--chunk-size", help="Chunk size in chars"),
 ) -> None:
     """Crawl an entire website and convert pages to markdown/text/HTML.
 
@@ -436,6 +663,7 @@ def crawl(
         site2cli crawl https://docs.example.com
         site2cli crawl https://example.com -d 2 -n 50 --format jsonl --stream
         site2cli crawl https://example.com --sitemap
+        site2cli crawl https://docs.example.com --rag -o chunks.jsonl
     """
     from site2cli.config import get_config
     from site2cli.crawl.crawler import SiteCrawler
@@ -523,6 +751,31 @@ def crawl(
         f" ({errors} errors) from {crawler.domain}"
         f"\n[dim]Job ID: {job.id}[/dim]"
     )
+
+    # RAG chunking
+    if rag or chunk_strategy:
+        from site2cli.content.chunker import chunk_text
+
+        strat = chunk_strategy or "heading"
+        all_chunks = []
+        for p in pages:
+            if p.content:
+                chunks = chunk_text(
+                    p.content, strategy=strat,
+                    chunk_size=chunk_size,
+                    url=p.url, title=p.title,
+                )
+                all_chunks.extend(chunks)
+        console.print(
+            f"[bold]{len(all_chunks)} chunks[/bold]"
+            f" ({strat}, {chunk_size} chars)"
+        )
+        if output:
+            with open(output, "w") as f:
+                for c in all_chunks:
+                    f.write(json.dumps(c.to_dict(), default=str) + "\n")
+            console.print(f"Saved to [bold]{output}[/bold]")
+        return
 
     # Save to output
     if output and not sitemap and not stream:

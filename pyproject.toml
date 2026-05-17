@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "site2cli"
-version = "0.6.0"
+version = "0.7.0"
 description = "Turn any website into a CLI/API for AI agents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,8 +52,14 @@ content = [
 cookies = [
     "browser-cookie3>=0.19.0",
 ]
+rag = [
+    "pdfplumber>=0.10.0",
+]
+search = [
+    "duckduckgo-search>=6.0.0",
+]
 all = [
-    "site2cli[browser,llm,mcp,content]",
+    "site2cli[browser,llm,mcp,content,rag,search]",
 ]
 dev = [
     "site2cli[all]",
