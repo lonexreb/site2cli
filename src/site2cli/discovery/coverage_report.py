@@ -109,11 +109,7 @@ _TEMPLATE = """<!doctype html>
 </header>
 <main>
   <div class="grid">
-    <div class="card"><div class="label">Endpoints</div><div class="value">{unique_endpoints}</div></div>
-    <div class="card"><div class="label">API Requests</div><div class="value">{api_requests}</div></div>
-    <div class="card"><div class="label">With Response Schema</div><div class="value">{with_resp}</div></div>
-    <div class="card"><div class="label">With Request Schema</div><div class="value">{with_req}</div></div>
-    <div class="card"><div class="label">Auth Required</div><div class="value">{auth_protected}</div></div>
+    {cards}
   </div>
 
   <section>
@@ -149,6 +145,15 @@ _TEMPLATE = """<!doctype html>
 
 
 _EMPTY = '<span class="empty">&mdash;</span>'
+
+
+def _card(label: str, value: object) -> str:
+    return (
+        '<div class="card">'
+        f'<div class="label">{html.escape(label)}</div>'
+        f'<div class="value">{value}</div>'
+        "</div>"
+    )
 
 
 def _endpoints_table(api: DiscoveredAPI) -> str:
@@ -202,14 +207,17 @@ def render_report(
     api: DiscoveredAPI, exchanges: list[CapturedExchange] | None = None
 ) -> str:
     stats = compute_coverage(api, exchanges)
+    cards = "\n    ".join([
+        _card("Endpoints", stats.unique_endpoints),
+        _card("API Requests", stats.api_requests),
+        _card("With Response Schema", stats.endpoints_with_response_schema),
+        _card("With Request Schema", stats.endpoints_with_request_schema),
+        _card("Auth Required", stats.auth_protected),
+    ])
     return _TEMPLATE.format(
         title=f"{api.site_url} — API Coverage",
         subtitle=f"Base: {html.escape(api.base_url)} · Auth: {api.auth_type.value}",
-        unique_endpoints=stats.unique_endpoints,
-        api_requests=stats.api_requests,
-        with_resp=stats.endpoints_with_response_schema,
-        with_req=stats.endpoints_with_request_schema,
-        auth_protected=stats.auth_protected,
+        cards=cards,
         endpoints_table=_endpoints_table(api),
         methods_pills=_pills(stats.methods),
         status_pills=_pills(stats.status_codes),

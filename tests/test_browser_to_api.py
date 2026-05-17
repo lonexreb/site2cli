@@ -5,8 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from site2cli.discovery.coverage_report import (
     compute_coverage,
     render_report,

@@ -67,15 +67,27 @@ def discover(
     ),
     headless: bool = typer.Option(True, help="Run browser in headless mode"),
     enhance: bool = typer.Option(True, help="Use LLM to enhance discovered endpoints"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output spec to file (.json/.yaml)"),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o", help="Output spec to file (.json/.yaml)"
+    ),
     profile: Optional[str] = typer.Option(None, "--profile", help="Browser profile to use"),
     session: Optional[str] = typer.Option(None, "--session", help="Session name to reuse"),
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL for requests"),
-    replay: Optional[str] = typer.Option(None, "--replay", help="Replay from a saved trace JSON instead of capturing"),
-    save_trace_path: Optional[str] = typer.Option(None, "--save-trace", help="Save raw captured exchanges to a trace JSON file"),
-    report: Optional[str] = typer.Option(None, "--report", help="Write HTML coverage report to this path"),
-    js_client: Optional[str] = typer.Option(None, "--js-client", help="Write JS ES-module client (client.mjs) to this path"),
-    spec_format: str = typer.Option("json", "--spec-format", help="Spec output format: json or yaml"),
+    replay: Optional[str] = typer.Option(
+        None, "--replay", help="Replay from a saved trace JSON instead of capturing"
+    ),
+    save_trace_path: Optional[str] = typer.Option(
+        None, "--save-trace", help="Save raw captured exchanges to a trace JSON file"
+    ),
+    report: Optional[str] = typer.Option(
+        None, "--report", help="Write HTML coverage report to this path"
+    ),
+    js_client: Optional[str] = typer.Option(
+        None, "--js-client", help="Write JS ES-module client (client.mjs) to this path"
+    ),
+    spec_format: str = typer.Option(
+        "json", "--spec-format", help="Spec output format: json or yaml"
+    ),
 ) -> None:
     """Discover API endpoints for a website by capturing network traffic."""
     from site2cli.config import get_config
