@@ -16,7 +16,13 @@
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/v/site2cli" alt="PyPI"></a>
   <a href="https://pypi.org/project/site2cli/"><img src="https://img.shields.io/pypi/pyversions/site2cli" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/lonexreb/site2cli" alt="License"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-500_passing-brightgreen" alt="Tests"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-559_passing-brightgreen" alt="Tests"></a>
+  <a href="https://github.com/lonexreb/site2cli/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22"><img src="https://img.shields.io/badge/PRs-welcome-blue" alt="PRs welcome"></a>
+  <a href="#open-source-and-contributing"><img src="https://img.shields.io/badge/help--wanted-good_first_issues-orange" alt="Good first issues"></a>
+</p>
+
+<p align="center">
+  <em>Free, open-source alternative to Firecrawl, Browserbase browser-to-api, and Browserbase browser-to-cli — runs 100% locally, no API keys, no per-page billing.</em>
 </p>
 
 ---
@@ -39,6 +45,19 @@ AI agents interact with websites through browser automation, which is slow, expe
   <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/help.gif" alt="CLI help overview" width="100%">
 </p>
 
+## What's New in v0.7.0 — `browser-to-api`+ for everyone
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/replay_v7.gif" alt="Discover APIs offline from a saved browser trace, then call them live with the generated JS client" width="100%">
+</p>
+
+- **Offline trace replay** — `site2cli discover <site> --replay trace.json` rebuilds the spec without re-running the browser. Save real captures with `--save-trace`.
+- **Four artifacts every run** — OpenAPI 3.1 (`.yaml` / `.json`), Python client, zero-dep **JavaScript ES-module client** (Node 18+ / Deno / Bun / browser), and a dark-theme **HTML coverage report** with gap candidates.
+- **`chunk` command** — RAG-ready chunking (fixed / sentence / heading) for `.md`, `.txt`, and PDFs.
+- **`search` command** — DuckDuckGo search piped into `--scrape`, `--extract`, or `--chunk` in one go.
+- **PDF parsing** — `pdf_to_text`, `pdf_to_markdown`, `pdf_page_count` via the `[rag]` extra.
+- **559 tests** (up from 500), all passing in <8s offline.
+
 ## Quick Start
 
 ```bash
@@ -53,6 +72,8 @@ pip install site2cli[browser]   # Playwright for traffic capture
 pip install site2cli[llm]       # Claude API for smart analysis
 pip install site2cli[mcp]       # MCP server generation
 pip install site2cli[content]   # HTML-to-markdown conversion
+pip install site2cli[rag]       # pdfplumber for PDF parsing
+pip install site2cli[search]    # duckduckgo-search for web search
 ```
 
 ### Discover a Site's API
@@ -61,9 +82,44 @@ pip install site2cli[content]   # HTML-to-markdown conversion
 # Capture traffic and discover API endpoints
 site2cli discover kayak.com --action "search flights"
 
-# site2cli launches a browser, captures network traffic,
-# and generates: OpenAPI spec + Python client + MCP tools
+# site2cli launches a browser, captures network traffic, and generates
+# four artifacts: OpenAPI 3.1 (.yaml/.json) + Python client +
+# JavaScript ES-module client (.mjs) + HTML coverage report.
+
+# Save the raw trace for replay later
+site2cli discover kayak.com --action "search flights" \
+  --save-trace kayak.trace.json
+
+# Re-run the whole discovery pipeline offline — no browser, no network
+site2cli discover kayak.com --replay kayak.trace.json \
+  --spec-format yaml --js-client client.mjs --report coverage.html
 ```
+
+### vs. Browserbase `browser-to-api` / `browser-to-cli`
+
+| Feature | Browserbase `browser-to-api` | Browserbase `browser-to-cli` | **site2cli** |
+|---|---|---|---|
+| Pair CDP request/response events | Yes | Yes | **Yes** |
+| Templatize URLs into path patterns | Yes | Yes | **Yes** |
+| Infer JSON schemas from samples | Yes | Yes | **Yes** |
+| Generate OpenAPI 3.1 spec | Yes (`.yaml`) | No | **Yes (`.yaml` or `.json`)** |
+| Generate JS client (`client.mjs`) | Yes | No | **Yes (zero-dep ES module)** |
+| Generate HTML coverage report | Yes | No | **Yes (with gap candidates)** |
+| Generate Python client | No | No | **Yes (typed httpx)** |
+| Generate a CLI from the spec | No | Yes | **Yes (Typer commands)** |
+| Offline replay of saved traces | Yes | Yes | **Yes (`--replay`)** |
+| Live browser capture in same tool | Separate (`browser-trace`) | Separate (`browser-trace`) | **Built-in** |
+| Auto-dismiss cookie banners | No | No | **Yes** |
+| Auth / SSO / CAPTCHA detection | No | No | **Yes** |
+| LLM-assisted endpoint analysis | No | No | **Yes (Claude, optional)** |
+| Self-healing on API drift | No | No | **Yes** |
+| MCP server generation for agents | No | No | **Yes** |
+| Crawl, monitor, screenshot | No | No | **Yes** |
+| RAG chunking + PDF parsing | No | No | **Yes** |
+| Web search → scrape → extract | No | No | **Yes** |
+| Runtime | Node-only | Node-only | **Python + Node (generated client)** |
+| Install path | `npx skills add ...` | `npx skills add ...` | **`pip install site2cli`** |
+| License | Closed source (skill marketplace) | Closed source | **MIT — fully open** |
 
 ### Use the Generated Interface
 
@@ -174,6 +230,45 @@ site2cli monitor https://example.com --webhook https://hooks.slack.com/xxx
 # List all watches, show history
 site2cli monitor --list
 site2cli monitor --history <watch-id>
+```
+
+### RAG-Ready Chunking (`chunk` command)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/lonexreb/site2cli/main/assets/chunk_v7.gif" alt="Chunk markdown into JSONL for RAG pipelines" width="100%">
+</p>
+
+```bash
+# Chunk a markdown file by headings (best for docs)
+site2cli chunk README.md --strategy heading --output chunks.jsonl
+
+# Chunk a PDF — requires site2cli[rag]
+site2cli chunk paper.pdf --strategy sentence --size 500
+
+# Fixed-size chunks with overlap (general fallback)
+site2cli chunk notes.txt --strategy fixed --size 1000 --overlap 200
+
+# Crawl + chunk in one shot — JSONL ready for any embedding pipeline
+site2cli crawl https://docs.example.com --rag -o chunks.jsonl
+```
+
+Each chunk emits `{ text, index, total, url, title, section }` so you can pipe it straight into `pgvector`, `chroma`, `qdrant`, `weaviate`, or any other vector DB.
+
+### Web Search → Scrape → Extract (`search` command)
+
+```bash
+# Plain search (DuckDuckGo, no API key)
+site2cli search "Python web scraping 2026"
+
+# Search + scrape top N results to markdown
+site2cli search "pricing plans" --scrape --format markdown
+
+# Search + scrape + chunk for RAG
+site2cli search "API docs" --scrape --chunk heading -o chunks.jsonl
+
+# Search + LLM-powered structured extraction
+site2cli search "restaurant reviews austin" \
+  --extract -p "extract name, rating, price tier"
 ```
 
 ### Capture Screenshots
@@ -336,6 +431,20 @@ mcp_code = generate_mcp_server_code(site, spec)
 
 ---
 
+## What's New in v0.7.0
+
+- **Full feature parity with Browserbase `browser-to-api` and `browser-to-cli`** — plus generates more (Python client, MCP tools, Typer CLI) than either.
+- **`--replay` and `--save-trace`** on `discover` — offline trace I/O via the portable `Trace` JSON format.
+- **`--spec-format yaml|json`** on `discover` — emit OpenAPI 3.1 in either format.
+- **Auto-emit four artifacts** — OpenAPI spec, Python client, JS ES-module client (`client.mjs`), and HTML coverage report — every discovery run.
+- **Dark-theme HTML coverage report** — endpoint table, methods, status codes, and gap candidates highlighting paths that didn't templatize.
+- **Zero-dep JavaScript client** — works in Node 18+, Deno, Bun, and modern browsers. Bearer / API key / custom-header auth via `createClient({ auth })`.
+- **`chunk` command** — fixed/sentence/heading strategies for `.md`, `.txt`, `.pdf` → JSONL ready for embeddings.
+- **`search` command** — DuckDuckGo + optional `--scrape`, `--extract`, `--chunk` in one pipeline.
+- **PDF parsing** — `site2cli[rag]` adds `pdf_to_text`, `pdf_to_markdown`, `pdf_page_count` via pdfplumber.
+- **Two long-standing bugs killed** — `chunk_fixed` infinite loop when `overlap >= chunk_size`; brittle `importlib.reload + patch.dict` pattern in PDF tests.
+- **559 tests** (up from 500), all passing offline in <8s.
+
 ## What's New in v0.6.0
 
 - **`crawl` command** — Full site crawling with BFS, configurable depth/max-pages, robots.txt respect, resume support, streaming JSONL output, and sitemap generation
@@ -484,9 +593,16 @@ Reproduce all experiments: `python experiments/run_all_experiments.py`
 </details>
 
 <details>
-<summary><h2>Testing (417 tests)</h2></summary>
+<summary><h2>Testing (559 tests)</h2></summary>
 
-**500 tests** (494 unit/integration + 6 live), all passing on Python 3.10+.
+**559 tests** (553 unit/integration + 6 live), all passing on Python 3.10+.
+
+| Suite | Tests | New in v0.7.0 |
+|---|---|---|
+| `test_browser_to_api.py` | 11 | Coverage report, JS client, OpenAPI YAML, trace round-trip |
+| `test_chunker.py` | 25 | Fixed / sentence / heading chunking |
+| `test_pdf.py` | 8 | `pdfplumber`-optional import error paths |
+| `test_search.py` | 9 | DuckDuckGo result shape, search CLI help |
 
 | Test File | Tests | Coverage Area |
 |---|---|---|
@@ -604,11 +720,58 @@ ruff check src/ tests/
 - [x] Full site crawling (`crawl` command)
 - [x] Change detection and monitoring (`monitor` command)
 - [x] Screenshot capture (`screenshot` command)
-- [ ] RAG-optimized output (chunked JSONL for vector DBs)
-- [ ] Web search + extract (`search` command)
-- [ ] PDF parsing
+- [x] RAG-optimized output (chunked JSONL for vector DBs) — `chunk` command + `crawl --rag`
+- [x] Web search + extract (`search` command) — DuckDuckGo + scrape + extract
+- [x] PDF parsing — `pdf_to_text`, `pdf_to_markdown`, `pdf_page_count`
+- [x] Offline trace replay for discovery (`discover --replay`) — matches Browserbase `browser-to-api`
+- [x] JavaScript ES-module client generator (`client.mjs`)
+- [x] HTML coverage report with gap detection
 - [ ] Trained endpoint classifier (replace heuristics)
 - [ ] WebSocket traffic capture
+- [ ] HAR-format trace ingestion (in addition to native Trace JSON)
+- [ ] TypeScript-typed client output (in addition to plain `.mjs`)
+- [ ] OpenAPI → Postman / Bruno collection export
+
+## Open Source and Contributing
+
+site2cli is MIT-licensed and built in the open. We want help.
+
+**Good first issues**
+
+| Area | Examples |
+|---|---|
+| **Adapters** | HAR file ingest in `discovery/trace.py`, Bruno/Postman exporter from OpenAPI |
+| **Generators** | TypeScript client output, Go client output, OpenAPI → curl snippets |
+| **RAG** | Token-based chunking (`tiktoken`), sliding-window sentence chunker, code-block-aware splitting |
+| **Search** | Brave Search adapter, SearXNG adapter, Bing Web Search adapter |
+| **Browser** | Firefox profile import (Chrome already supported), Safari cookie import |
+| **Docs** | Recipe cookbook, more demo GIFs, walkthroughs for popular SaaS APIs |
+
+```bash
+git clone https://github.com/lonexreb/site2cli.git
+cd site2cli
+pip install -e ".[dev]"
+pytest                  # 559 offline tests
+pytest -m live          # 6 live tests (jsonplaceholder + httpbin)
+```
+
+PRs welcome — even one-liner doc fixes get merged. Open an issue first for larger changes so we can sketch the design together.
+
+## Keywords
+
+> `browser-to-api`, `browser-to-cli`, `Browserbase alternative`, `Firecrawl alternative`,
+> `OpenAPI from browser traffic`, `CDP to OpenAPI`, `HAR to OpenAPI`,
+> `offline API discovery`, `replay browser trace`, `network trace to OpenAPI`,
+> `AI agent tools`, `MCP server generator`, `Claude Code MCP`, `Anthropic MCP server`,
+> `LLM web scraper`, `structured data extraction LLM`, `JSON Schema extraction`,
+> `Pydantic extraction`, `web search CLI`, `DuckDuckGo CLI`,
+> `RAG chunker`, `markdown chunker`, `PDF to markdown CLI`, `JSONL for embeddings`,
+> `site crawler Python`, `change detection website`, `webhook page monitor`,
+> `Playwright CLI`, `headless browser CLI`, `auto-generate API client`,
+> `typed httpx client generator`, `JavaScript ES module client generator`,
+> `progressive enhancement scraping`, `tier router web automation`,
+> `open source Firecrawl`, `open source Browserbase`, `open source RAG pipeline`,
+> `Python 3.10`, `Python 3.11`, `Python 3.12`, `Python 3.13`, `MIT licensed`.
 
 ## License
 

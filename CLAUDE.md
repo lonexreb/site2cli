@@ -18,8 +18,11 @@ src/site2cli/
 ├── discovery/
 │   ├── capture.py      # CDP-based network traffic capture
 │   ├── analyzer.py     # LLM-assisted pattern analysis
-│   ├── spec_generator.py  # OpenAPI spec generation
-│   └── client_generator.py # Python client code generation
+│   ├── spec_generator.py  # OpenAPI 3.1 spec (JSON + YAML)
+│   ├── client_generator.py # Python client code generation
+│   ├── js_client_generator.py # Zero-dep ES-module JS client (.mjs)
+│   ├── coverage_report.py  # Dark-theme HTML coverage report with gap detection
+│   └── trace.py        # Portable Trace JSON (save_trace / load_trace) for offline replay
 ├── browser/
 │   ├── retry.py        # Async retry with delay for browser actions
 │   ├── wait.py         # Rich wait conditions (network-idle, selector, stable)
@@ -34,7 +37,11 @@ src/site2cli/
 │   ├── mcp_gen.py      # MCP server generation
 │   └── agent_config.py # Agent config generation (Claude MCP, generic)
 ├── content/
-│   └── converter.py    # HTML to markdown/text conversion, main content extraction
+│   ├── converter.py    # HTML to markdown/text conversion, main content extraction
+│   ├── chunker.py      # RAG chunking (fixed / sentence / heading strategies)
+│   └── pdf.py          # PDF parsing via pdfplumber (text / markdown / page count)
+├── search/
+│   └── engine.py       # DuckDuckGo search + chained scrape / extract
 ├── crawl/
 │   ├── crawler.py      # Async BFS site crawler with resume and streaming
 │   ├── links.py        # Link extraction and normalization from HTML
@@ -95,10 +102,12 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 494 unit/integration tests (no network)
+pytest                    # 553 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
+
+**Total: 559 tests (553 + 6 live), all passing in <8s.**
 
 **Test files:**
 - `test_analyzer.py` — Traffic analysis & grouping (23 tests)
@@ -174,7 +183,9 @@ Heavy deps are optional to keep base install lightweight:
 - `site2cli[llm]` — Anthropic SDK
 - `site2cli[mcp]` — MCP Python SDK
 - `site2cli[content]` — markdownify for HTML conversion
-- `site2cli[all]` — Everything (browser, llm, mcp, content)
+- `site2cli[rag]` — pdfplumber for PDF parsing
+- `site2cli[search]` — duckduckgo-search for web search
+- `site2cli[all]` — Everything (browser, llm, mcp, content, rag, search)
 - `site2cli[dev]` — All + pytest, ruff, mypy
 
 ## Bug Fixes
