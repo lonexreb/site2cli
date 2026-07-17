@@ -39,6 +39,8 @@ class SiteCrawler:
         self.start_url = normalize_url(start_url) or start_url
         parsed = urlparse(self.start_url)
         self.domain = parsed.hostname or ""
+        # netloc keeps the port (host:8080) — required for robots.txt fetching
+        self.netloc = parsed.netloc or self.domain
         self.scheme = parsed.scheme or "https"
         self.max_depth = max_depth
         self.max_pages = max_pages
@@ -74,7 +76,7 @@ class SiteCrawler:
         """Crawl the site using BFS, yielding pages as they're crawled."""
         # Load robots.txt
         if self.respect_robots:
-            self._robots = RobotsChecker(self.domain, self.scheme)
+            self._robots = RobotsChecker(self.netloc, self.scheme)
             await self._robots.load()
 
         # BFS queue: (url, depth)

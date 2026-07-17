@@ -57,8 +57,17 @@ async def take_screenshot(
     if fmt == "jpeg" and quality is not None:
         screenshot_kwargs["quality"] = quality
 
+    session_manager = None
+    if session:
+        from site2cli.browser.session import get_session_manager
+
+        session_manager = get_session_manager()
+
     async with create_browser_context(
-        proxy=proxy, profile=profile, session=session
+        proxy=proxy,
+        profile=profile,
+        session_manager=session_manager,
+        session_name=session,
     ) as (browser, context, page):
         page.set_default_timeout(30_000)
         await page.set_viewport_size({"width": width, "height": height})

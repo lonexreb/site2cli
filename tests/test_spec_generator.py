@@ -116,3 +116,65 @@ def test_save_and_load_spec(tmp_path):
     loaded = load_spec(path)
     assert loaded["openapi"] == "3.1.0"
     assert loaded["paths"] == spec["paths"]
+
+
+def test_make_operation_id_sanitizes_path_params():
+    from site2cli.discovery.spec_generator import make_operation_id
+
+    ep = EndpointInfo(method="GET", path_pattern="/api/users/{id}")
+    assert make_operation_id(ep) == "get_api_users_id"
+
+    ep = EndpointInfo(method="POST", path_pattern="/api/search")
+    assert make_operation_id(ep) == "post_api_search"
+
+    ep = EndpointInfo(method="GET", path_pattern="/v2/items", description="List all items!")
+    assert make_operation_id(ep) == "list_all_items"
+
+
+def test_operation_ids_are_identifier_safe():
+    """Generated operationIds must not contain braces or slashes."""
+    import re
+
+    api = DiscoveredAPI(
+        site_url="example.com",
+        base_url="https://api.example.com",
+        endpoints=[EndpointInfo(method="GET", path_pattern="/api/users/{id}")],
+        auth_type=AuthType.NONE,
+    )
+    spec = generate_openapi_spec(api)
+    op_id = spec["paths"]["/api/users/{id}"]["get"]["operationId"]
+    assert re.fullmatch(r"[a-zA-Z0-9_]+", op_id), op_id
+
+
+def test_make_unique_operation_ids_deduplicates_collisions():
+    """Lossy normalization collisions get deterministic suffixes."""
+    from site2cli.discovery.spec_generator import make_unique_operation_ids
+
+    endpoints = [
+        EndpointInfo(method="GET", path_pattern="/a-b"),
+        EndpointInfo(method="GET", path_pattern="/a_b"),
+        EndpointInfo(method="GET", path_pattern="/a.b"),
+        EndpointInfo(method="POST", path_pattern="/a-b"),
+    ]
+    ids = make_unique_operation_ids(endpoints)
+    assert ids == ["get_a_b", "get_a_b_2", "get_a_b_3", "post_a_b"]
+    assert len(set(ids)) == len(ids)
+
+
+def test_generated_spec_operation_ids_unique_on_collision():
+    api = DiscoveredAPI(
+        site_url="example.com",
+        base_url="https://api.example.com",
+        endpoints=[
+            EndpointInfo(method="GET", path_pattern="/a-b"),
+            EndpointInfo(method="GET", path_pattern="/a_b"),
+        ],
+        auth_type=AuthType.NONE,
+    )
+    spec = generate_openapi_spec(api)
+    op_ids = [
+        op["operationId"]
+        for path_item in spec["paths"].values()
+        for op in path_item.values()
+    ]
+    assert len(set(op_ids)) == len(op_ids)

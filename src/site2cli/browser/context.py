@@ -24,6 +24,7 @@ async def create_browser_context(
     session_manager: Any | None = None,
     session_name: str | None = None,
     inject_cookies_for: str | None = None,
+    proxy: dict | None = None,
 ) -> AsyncIterator[tuple[Browser, BrowserContext, Page]]:
     """Create a browser context with cookies, profile, and session support.
 
@@ -34,6 +35,7 @@ async def create_browser_context(
         session_manager: Optional SessionManager to reuse sessions.
         session_name: Session name for session_manager lookup.
         inject_cookies_for: Domain to inject stored cookies for.
+        proxy: Playwright proxy dict; overrides the configured proxy.
 
     Yields:
         Tuple of (browser, context, page).
@@ -56,8 +58,8 @@ async def create_browser_context(
     browser: Browser | None = None
 
     try:
-        # Resolve proxy settings
-        proxy_config = config.proxy.get_playwright_proxy()
+        # Resolve proxy settings (explicit argument wins over config)
+        proxy_config = proxy if proxy is not None else config.proxy.get_playwright_proxy()
 
         if profile:
             # Profile mode: launch_persistent_context with user data dir

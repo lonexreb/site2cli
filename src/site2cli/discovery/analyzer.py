@@ -29,6 +29,24 @@ def _normalize_path(path: str) -> str:
     return path
 
 
+def _infer_query_param_type(value: str | None) -> str:
+    """Infer a JSON Schema type from a query-string example value.
+
+    Query values are always strings on the wire, but typing "limit=5" as
+    integer keeps generated clients and MCP tool schemas consistent with
+    body parameters (which are inferred from JSON).
+    """
+    if value is None or value == "":
+        return "string"
+    if value.lower() in ("true", "false"):
+        return "boolean"
+    if re.fullmatch(r"-?\d+", value):
+        return "integer"
+    if re.fullmatch(r"-?\d+\.\d+", value):
+        return "number"
+    return "string"
+
+
 def _infer_json_schema(data: object) -> dict:
     """Infer a JSON Schema from a sample value."""
     if data is None:
@@ -112,7 +130,7 @@ class TrafficAnalyzer:
                     ParameterInfo(
                         name=param_name,
                         location="query",
-                        param_type="string",
+                        param_type=_infer_query_param_type(example_val),
                         required=False,
                         example=example_val,
                     )

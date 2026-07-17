@@ -139,3 +139,51 @@ def test_run_help():
     result = runner.invoke(app, ["run", "--help"])
     assert result.exit_code == 0
     assert "domain" in result.output.lower()
+
+
+def test_daemon_start_has_foreground_flag():
+    import re
+
+    result = runner.invoke(app, ["daemon", "start", "--help"])
+    assert result.exit_code == 0
+    # Typer forces ANSI colors under GITHUB_ACTIONS, splitting "--" with
+    # escape codes — strip them before substring assertions.
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--foreground" in plain
+
+
+def test_run_unknown_action_lists_available(tmp_path, monkeypatch):
+    """run with a bad action name fails fast and prints valid action names."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    from site2cli.config import get_config, reset_config
+    reset_config()
+
+    try:
+        from site2cli.models import EndpointInfo, SiteAction, SiteEntry, Tier
+        from site2cli.registry import SiteRegistry
+
+        config = get_config()
+        config.ensure_dirs()
+        reg = SiteRegistry(config.db_path)
+        reg.add_site(
+            SiteEntry(
+                domain="api.example.com",
+                base_url="https://api.example.com",
+                actions=[
+                    SiteAction(
+                        name="get_items",
+                        tier=Tier.API,
+                        endpoint=EndpointInfo(method="GET", path_pattern="/items"),
+                    )
+                ],
+            )
+        )
+        reg.close()
+
+        result = runner.invoke(app, ["run", "api.example.com", "totally_wrong_action"])
+        assert result.exit_code == 1
+        assert "Unknown action" in result.output
+        assert "get_items" in result.output
+    finally:
+        # Don't leak the tmp_path-bound config into subsequent tests
+        reset_config()

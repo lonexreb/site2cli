@@ -9,10 +9,21 @@ from pathlib import Path
 from site2cli.models import MCPToolSchema, SiteEntry, Tier
 
 
+def _sanitize_tool_name(name: str) -> str:
+    """Sanitize to the MCP tool-name charset (``^[a-zA-Z0-9_-]+$``).
+
+    OperationIds derived from paths can contain ``{`` ``}`` ``/`` etc.,
+    which MCP clients reject.
+    """
+    name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    return re.sub(r"_+", "_", name).strip("_")
+
+
 def _spec_to_mcp_tools(site: SiteEntry, spec: dict) -> list[MCPToolSchema]:
     """Convert OpenAPI spec operations to MCP tool schemas."""
     tools = []
     domain_prefix = re.sub(r"[^a-z0-9]", "_", site.domain.split(".")[0])
+    seen_names: dict[str, int] = {}
 
     for path, path_item in spec.get("paths", {}).items():
         for http_method, operation in path_item.items():
@@ -20,7 +31,13 @@ def _spec_to_mcp_tools(site: SiteEntry, spec: dict) -> list[MCPToolSchema]:
                 continue
 
             op_id = operation.get("operationId", f"{http_method}_{path}")
-            tool_name = f"{domain_prefix}_{op_id}"
+            tool_name = _sanitize_tool_name(f"{domain_prefix}_{op_id}")
+            # Sanitization is lossy — suffix deterministically on collision
+            # so no tool handler shadows another.
+            count = seen_names.get(tool_name, 0) + 1
+            seen_names[tool_name] = count
+            if count > 1:
+                tool_name = f"{tool_name}_{count}"
             description = operation.get("summary", op_id)
 
             # Build input schema from parameters + request body
@@ -58,10 +75,12 @@ def _spec_to_mcp_tools(site: SiteEntry, spec: dict) -> list[MCPToolSchema]:
                 "required": required,
             }
 
-            # Determine tier from site actions
+            # Determine tier from site actions (normalized: legacy registries
+            # may store "GET_/api/products" instead of "get_api_products")
             tier = Tier.API
+            wanted = _sanitize_tool_name(op_id).lower()
             for action in site.actions:
-                if action.name == op_id:
+                if _sanitize_tool_name(action.name).lower() == wanted:
                     tier = action.tier
                     break
 

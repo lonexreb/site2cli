@@ -108,21 +108,48 @@ class TestExecuteUnknownDomain:
 
 
 class TestExecuteUnknownAction:
-    """execute() should fall back to browser when action is not registered."""
+    """execute() should fail fast with valid names for unknown actions."""
 
     @pytest.mark.asyncio
-    async def test_unknown_action_calls_fallback_browser(self, registry):
+    async def test_unknown_action_returns_error_with_available_actions(self, registry):
         site = _make_api_site()
         registry.add_site(site)
         router = Router(registry)
-        expected = {"fallback": True}
 
         async def mock_execute_action(url, action, params):
-            return expected
+            raise AssertionError("browser fallback must not run for unknown actions")
 
         router._browser.execute_action = mock_execute_action
 
         result = await router.execute("api.example.com", "nonexistent_action", {})
+        assert "error" in result
+        assert "nonexistent_action" in result["error"]
+        assert result["available_actions"] == ["get_data"]
+
+    @pytest.mark.asyncio
+    async def test_action_name_matches_normalized_legacy_style(self, registry):
+        """operationId-style names resolve legacy 'GET_/path' registry entries."""
+        site = SiteEntry(
+            domain="legacy.example.com",
+            base_url="https://legacy.example.com",
+            actions=[
+                SiteAction(
+                    name="GET_/api/products",
+                    tier=Tier.API,
+                    endpoint=EndpointInfo(method="GET", path_pattern="/api/products"),
+                )
+            ],
+        )
+        registry.add_site(site)
+        router = Router(registry)
+        expected = {"status_code": 200, "data": []}
+
+        async def mock_api_execute(site_arg, endpoint, params):
+            return expected
+
+        router._direct_api.execute = mock_api_execute
+
+        result = await router.execute("legacy.example.com", "get_api_products", {})
         assert result == expected
 
 
@@ -372,3 +399,61 @@ class TestMaybePromoteOnSuccess:
         await router.execute("api.example.com", "get_data", {})
 
         assert promote_calls == []
+
+
+class TestAmbiguousActionNames:
+    @pytest.mark.asyncio
+    async def test_ambiguous_normalized_match_is_rejected(self, registry):
+        """Two legacy actions normalizing to the same name must not resolve."""
+        site = SiteEntry(
+            domain="dupes.example.com",
+            base_url="https://dupes.example.com",
+            actions=[
+                SiteAction(
+                    name="GET_/a-b",
+                    tier=Tier.API,
+                    endpoint=EndpointInfo(method="GET", path_pattern="/a-b"),
+                ),
+                SiteAction(
+                    name="GET_/a_b",
+                    tier=Tier.API,
+                    endpoint=EndpointInfo(method="GET", path_pattern="/a_b"),
+                ),
+            ],
+        )
+        registry.add_site(site)
+        router = Router(registry)
+
+        result = await router.execute("dupes.example.com", "get_a_b", {})
+        assert "error" in result
+        assert sorted(result["available_actions"]) == ["GET_/a-b", "GET_/a_b"]
+
+    @pytest.mark.asyncio
+    async def test_exact_match_wins_over_ambiguity(self, registry):
+        site = SiteEntry(
+            domain="exact.example.com",
+            base_url="https://exact.example.com",
+            actions=[
+                SiteAction(
+                    name="get_a_b",
+                    tier=Tier.API,
+                    endpoint=EndpointInfo(method="GET", path_pattern="/a_b"),
+                ),
+                SiteAction(
+                    name="GET_/a-b",
+                    tier=Tier.API,
+                    endpoint=EndpointInfo(method="GET", path_pattern="/a-b"),
+                ),
+            ],
+        )
+        registry.add_site(site)
+        router = Router(registry)
+        expected = {"ok": True}
+
+        async def mock_api_execute(site_arg, endpoint, params):
+            return expected
+
+        router._direct_api.execute = mock_api_execute
+
+        result = await router.execute("exact.example.com", "get_a_b", {})
+        assert result == expected

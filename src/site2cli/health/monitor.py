@@ -66,6 +66,11 @@ class HealthMonitor:
                 else:
                     response = await client.options(url)
 
+                # Many servers don't implement HEAD/OPTIONS (405/501) even
+                # though the endpoint itself is healthy — probe with GET.
+                if response.status_code in (405, 501):
+                    response = await client.get(url)
+
                 if response.status_code < 400:
                     return HealthStatus.HEALTHY
                 elif response.status_code < 500:

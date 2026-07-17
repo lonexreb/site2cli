@@ -3,9 +3,40 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from site2cli.models import DiscoveredAPI, EndpointInfo, ParameterInfo
+
+
+def make_operation_id(endpoint: EndpointInfo) -> str:
+    """Build the canonical operation/action ID for an endpoint.
+
+    Produces identifier-safe names like ``get_api_users_id`` so the same ID
+    works as an OpenAPI operationId, a registry action name, a generated
+    client method, and an MCP tool-name component.
+    """
+    raw = endpoint.description or f"{endpoint.method} {endpoint.path_pattern}"
+    op_id = re.sub(r"[^a-zA-Z0-9]+", "_", raw.lower()).strip("_")
+    return op_id or "operation"
+
+
+def make_unique_operation_ids(endpoints: list[EndpointInfo]) -> list[str]:
+    """Build collision-free operation IDs for a list of endpoints.
+
+    Normalization is lossy (``/a-b`` and ``/a_b`` collapse to the same ID),
+    so duplicates get a deterministic ``_2``, ``_3``, ... suffix in endpoint
+    order. Callers that iterate the same endpoint list (spec generation and
+    registry action naming) therefore agree on every ID.
+    """
+    seen: dict[str, int] = {}
+    ids = []
+    for ep in endpoints:
+        base = make_operation_id(ep)
+        count = seen.get(base, 0) + 1
+        seen[base] = count
+        ids.append(base if count == 1 else f"{base}_{count}")
+    return ids
 
 
 def _param_to_openapi(param: ParameterInfo) -> dict:
@@ -35,12 +66,10 @@ def _param_to_openapi(param: ParameterInfo) -> dict:
     return schema
 
 
-def _endpoint_to_openapi_path(endpoint: EndpointInfo) -> dict:
+def _endpoint_to_openapi_path(endpoint: EndpointInfo, operation_id: str | None = None) -> dict:
     """Convert an EndpointInfo to an OpenAPI path item operation."""
     operation: dict = {
-        "operationId": endpoint.description.replace(" ", "_").lower()
-        if endpoint.description
-        else f"{endpoint.method.lower()}_{endpoint.path_pattern.replace('/', '_').strip('_')}",
+        "operationId": operation_id or make_operation_id(endpoint),
         "summary": endpoint.description or f"{endpoint.method} {endpoint.path_pattern}",
     }
 
@@ -106,12 +135,13 @@ def generate_openapi_spec(api: DiscoveredAPI) -> dict:
     }
 
     # Group endpoints by path
-    for endpoint in api.endpoints:
+    op_ids = make_unique_operation_ids(api.endpoints)
+    for endpoint, op_id in zip(api.endpoints, op_ids):
         path = endpoint.path_pattern
         if path not in spec["paths"]:
             spec["paths"][path] = {}
         method = endpoint.method.lower()
-        spec["paths"][path][method] = _endpoint_to_openapi_path(endpoint)
+        spec["paths"][path][method] = _endpoint_to_openapi_path(endpoint, op_id)
 
     # Add security schemes if any endpoint requires auth
     if any(ep.auth_required for ep in api.endpoints):

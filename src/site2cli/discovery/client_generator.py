@@ -48,6 +48,9 @@ def generate_client_code(spec: dict, class_name: str | None = None) -> str:
     title = info.get("title", "API")
     if not class_name:
         class_name = _sanitize_name(title.replace("API", "").strip()).title().replace("_", "")
+        if class_name and class_name[0].isdigit():
+            # Identifiers can't start with a digit (e.g. "127.0.0.1" or "9gag.com" hosts)
+            class_name = f"Site{class_name}"
         class_name = f"{class_name}Client" if class_name else "APIClient"
 
     servers = spec.get("servers", [])

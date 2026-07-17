@@ -85,6 +85,8 @@ class TestSearchDuckDuckGo:
 
 class TestSearchCLI:
     def test_cli_help(self):
+        import re
+
         from typer.testing import CliRunner
 
         from site2cli.cli import app
@@ -92,9 +94,12 @@ class TestSearchCLI:
         runner = CliRunner()
         result = runner.invoke(app, ["search", "--help"])
         assert result.exit_code == 0
-        assert "search" in result.output.lower()
-        assert "--scrape" in result.output
-        assert "--extract" in result.output
+        # Typer forces ANSI colors under GITHUB_ACTIONS, splitting "--" with
+        # escape codes — strip them before substring assertions.
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+        assert "search" in plain.lower()
+        assert "--scrape" in plain
+        assert "--extract" in plain
 
     def test_cli_missing_query(self):
         from typer.testing import CliRunner

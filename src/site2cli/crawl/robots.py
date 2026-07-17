@@ -19,9 +19,14 @@ class RobotsChecker:
         self._sitemaps: list[str] = []
         self._loaded = False
 
+    @property
+    def robots_url(self) -> str:
+        """URL robots.txt is fetched from (domain may include a port)."""
+        return f"{self._scheme}://{self._domain}/robots.txt"
+
     async def load(self) -> None:
         """Fetch and parse robots.txt from domain."""
-        url = f"{self._scheme}://{self._domain}/robots.txt"
+        url = self.robots_url
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=10) as client:
                 resp = await client.get(url)

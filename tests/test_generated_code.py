@@ -224,3 +224,57 @@ def test_mcp_server_includes_correct_server_name():
     site = _make_site(domain="widgets.io", base_url="https://api.widgets.io")
     code = generate_mcp_server_code(site, _make_spec())
     assert "widgets.io-site2cli" in code
+
+
+def test_mcp_tool_names_are_spec_valid():
+    """MCP tool names must match ^[a-zA-Z0-9_-]+$ — braces from path
+
+    parameters (e.g. get_api_users_{id}) are rejected by real MCP clients.
+    """
+    import re
+
+    from site2cli.generators.mcp_gen import _spec_to_mcp_tools
+
+    spec = _make_spec(
+        {
+            "/api/users/{id}": {
+                "get": {
+                    "operationId": "get_api_users_{id}",
+                    "parameters": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "OK"}},
+                }
+            }
+        }
+    )
+    site = _make_site(domain="127.0.0.1", base_url="http://127.0.0.1:8777")
+    tools = _spec_to_mcp_tools(site, spec)
+    assert tools
+    for tool in tools:
+        assert re.fullmatch(r"[a-zA-Z0-9_-]+", tool.name), tool.name
+
+
+def test_mcp_tool_names_deduplicated_on_sanitization_collision():
+    """Sanitized tool names that collide get deterministic suffixes."""
+    from site2cli.generators.mcp_gen import _spec_to_mcp_tools
+
+    spec = _make_spec(
+        {
+            "/a-b": {
+                "get": {"operationId": "get_a-b", "responses": {}},
+            },
+            "/a_b": {
+                "get": {"operationId": "get_a_b", "responses": {}},
+            },
+        }
+    )
+    site = _make_site(domain="example.com", base_url="https://api.example.com")
+    tools = _spec_to_mcp_tools(site, spec)
+    names = [t.name for t in tools]
+    assert len(set(names)) == len(names), names

@@ -242,3 +242,54 @@ async def test_action_without_endpoint_gets_unknown_status(registry, monitor):
 
     result = await monitor.check_site("browser.example.com")
     assert result["do_something"] == HealthStatus.UNKNOWN
+
+
+class MockAsyncClientNoHead:
+    """Server that rejects HEAD/OPTIONS (501/405) but serves GET fine."""
+
+    def __init__(self, probe_status: int = 501, get_status: int = 200):
+        self.probe_status = probe_status
+        self.get_status = get_status
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+    async def head(self, url, **kwargs):
+        return MockResponse(self.probe_status)
+
+    async def options(self, url, **kwargs):
+        return MockResponse(self.probe_status)
+
+    async def get(self, url, **kwargs):
+        return MockResponse(self.get_status)
+
+
+async def test_check_endpoint_falls_back_to_get_on_501(
+    registry, monitor, site_with_get_endpoint, monkeypatch,
+):
+    """Servers without HEAD support must not be reported BROKEN."""
+    registry.add_site(site_with_get_endpoint)
+
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kwargs: MockAsyncClientNoHead(501, 200)
+    )
+
+    result = await monitor.check_site("api.example.com")
+    assert result["list_items"] == HealthStatus.HEALTHY
+
+
+async def test_check_endpoint_falls_back_to_get_on_405_for_post(
+    registry, monitor, site_with_post_endpoint, monkeypatch,
+):
+    """OPTIONS-rejecting servers get a GET probe instead of BROKEN."""
+    registry.add_site(site_with_post_endpoint)
+
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kwargs: MockAsyncClientNoHead(405, 200)
+    )
+
+    result = await monitor.check_site("api.example.com")
+    assert result["create_item"] == HealthStatus.HEALTHY

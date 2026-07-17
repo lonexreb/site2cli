@@ -99,7 +99,11 @@ def discover(
         generate_js_client,
         save_js_client,
     )
-    from site2cli.discovery.spec_generator import generate_openapi_spec, save_spec
+    from site2cli.discovery.spec_generator import (
+        generate_openapi_spec,
+        make_unique_operation_ids,
+        save_spec,
+    )
     from site2cli.discovery.trace import load_trace, save_trace
     from site2cli.models import (
         DiscoveredAPI,
@@ -223,18 +227,15 @@ def discover(
 
     # Step 6: Register site
     registry = _get_registry()
+    action_names = make_unique_operation_ids(endpoints)
     actions = [
         SiteAction(
-            name=(
-                ep.description.replace(" ", "_").lower()
-                if ep.description
-                else f"{ep.method}_{ep.path_pattern}"
-            ),
+            name=name,
             description=ep.description,
             tier=Tier.API,
             endpoint=ep,
         )
-        for ep in endpoints
+        for ep, name in zip(endpoints, action_names)
     ]
     site = SiteEntry(
         domain=domain,
@@ -242,8 +243,8 @@ def discover(
         description=api.description,
         actions=actions,
         auth_type=auth_type,
-        openapi_spec_path=str(spec_path),
-        client_module_path=str(client_path),
+        openapi_spec_path=str(spec_path.resolve()),
+        client_module_path=str(client_path.resolve()),
     )
     registry.add_site(site)
 
@@ -253,10 +254,10 @@ def discover(
         f"[bold green]Discovered {len(endpoints)}"
         f" capabilities for {domain}:[/bold green]"
     )
-    for ep in endpoints:
+    for ep, action_name in zip(endpoints, action_names):
         name = ep.description or f"{ep.method} {ep.path_pattern}"
         params = ", ".join(p.name for p in ep.parameters[:5])
-        console.print(f"  - {name} ({params})")
+        console.print(f"  - {name} ({params})  [dim]run: {action_name}[/dim]")
 
 
 @app.command()
@@ -305,6 +306,13 @@ def run(
 
     with console.status(f"[bold green]Executing {action} on {domain}..."):
         result = _run_async(router.execute(domain, action, param_dict))
+
+    if isinstance(result, dict) and "error" in result and "available_actions" in result:
+        console.print(f"[red]{result['error']}[/red]")
+        console.print("Available actions:")
+        for name in result["available_actions"]:
+            console.print(f"  - {name}")
+        raise typer.Exit(1)
 
     # Apply output filters
     if grep or limit is not None or keys_only:
@@ -1495,7 +1503,22 @@ def mcp_generate(
         console.print("[red]No OpenAPI spec found for this site.[/red]")
         raise typer.Exit(1)
 
-    spec = load_spec(Path(site.openapi_spec_path))
+    spec_path = Path(site.openapi_spec_path)
+    if not spec_path.exists():
+        # Legacy registries stored relative paths; fall back to the specs dir
+        for ext in ("json", "yaml"):
+            candidate = config.specs_dir / f"{domain}.{ext}"
+            if candidate.exists():
+                spec_path = candidate
+                break
+        else:
+            console.print(
+                f"[red]Spec file not found: {site.openapi_spec_path}[/red]"
+                f" Re-run `site2cli discover {domain}` to regenerate it."
+            )
+            raise typer.Exit(1)
+
+    spec = load_spec(spec_path)
     code = generate_mcp_server_code(site, spec)
 
     output_path = (
@@ -1849,16 +1872,61 @@ app.add_typer(daemon_app, name="daemon")
 
 
 @daemon_app.command("start")
-def daemon_start() -> None:
+def daemon_start(
+    foreground: bool = typer.Option(
+        False, "--foreground", "-f", help="Run in the foreground instead of detaching"
+    ),
+) -> None:
     """Start the background browser daemon."""
-    from site2cli.daemon.server import DaemonServer
-
     config = get_config()
-    server = DaemonServer(config.daemon_socket_path)
-    console.print(
-        f"[green]Starting daemon on {config.daemon_socket_path}...[/green]"
-    )
-    _run_async(server.run())
+
+    if foreground:
+        from site2cli.daemon.server import DaemonServer
+
+        server = DaemonServer(config.daemon_socket_path)
+        console.print(
+            f"[green]Starting daemon on {config.daemon_socket_path}...[/green]"
+        )
+        _run_async(server.run())
+        return
+
+    if config.daemon_socket_path.exists():
+        from site2cli.daemon.client import DaemonClient
+
+        client = DaemonClient(config.daemon_socket_path)
+        try:
+            _run_async(client.send("list_sessions", {}))
+            console.print("[yellow]Daemon is already running.[/yellow]")
+            return
+        except Exception:
+            # Stale socket from a previous run
+            config.daemon_socket_path.unlink()
+
+    import subprocess
+    import sys
+    import time
+
+    log_path = config.data_dir / "daemon.log"
+    with open(log_path, "ab") as log:
+        subprocess.Popen(
+            [sys.executable, "-m", "site2cli", "daemon", "start", "--foreground"],
+            stdout=log,
+            stderr=log,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+    for _ in range(40):
+        if config.daemon_socket_path.exists():
+            console.print(
+                f"[green]Daemon started on {config.daemon_socket_path}[/green]"
+                f" (log: {log_path})"
+            )
+            return
+        time.sleep(0.25)
+
+    console.print(f"[red]Daemon did not start within 10s; see {log_path}[/red]")
+    raise typer.Exit(1)
 
 
 @daemon_app.command("stop")

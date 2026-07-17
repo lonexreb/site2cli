@@ -72,3 +72,56 @@ class TestScreenshotCLI:
         runner = CliRunner()
         result = runner.invoke(app, ["screenshot"])
         assert result.exit_code != 0
+
+
+class TestCaptureKwargs:
+    def test_capture_forwards_valid_context_kwargs(self):
+        """take_screenshot's kwargs must bind to create_browser_context's signature.
+
+        Regression test: v0.7.0 passed proxy=/session= which the factory
+        rejected, making every `site2cli screenshot` invocation crash.
+        """
+        import inspect
+
+        from site2cli.browser.context import create_browser_context
+
+        sig = inspect.signature(create_browser_context)
+        # These are exactly the kwargs screenshot/capture.py forwards.
+        sig.bind(proxy=None, profile=None, session_manager=None, session_name=None)
+
+    async def test_take_screenshot_with_stubbed_browser(self, tmp_path, monkeypatch):
+        """End-to-end through take_screenshot with a stub context factory."""
+        import inspect
+        from contextlib import asynccontextmanager
+
+        from site2cli.browser import context as ctx_mod
+        from site2cli.screenshot.capture import take_screenshot
+
+        real_sig = inspect.signature(ctx_mod.create_browser_context)
+        out_file = tmp_path / "shot.png"
+
+        class FakePage:
+            def set_default_timeout(self, ms):
+                pass
+
+            async def set_viewport_size(self, size):
+                pass
+
+            async def goto(self, url, **kwargs):
+                pass
+
+            async def screenshot(self, **kwargs):
+                from pathlib import Path
+
+                Path(kwargs["path"]).write_bytes(b"\x89PNG fake")
+
+        @asynccontextmanager
+        async def fake_factory(*args, **kwargs):
+            real_sig.bind(*args, **kwargs)  # reject kwargs the real factory rejects
+            yield None, None, FakePage()
+
+        monkeypatch.setattr(ctx_mod, "create_browser_context", fake_factory)
+
+        result = await take_screenshot("http://example.com", output=str(out_file))
+        assert out_file.exists()
+        assert result.format == "png"
