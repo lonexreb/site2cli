@@ -142,9 +142,14 @@ def test_run_help():
 
 
 def test_daemon_start_has_foreground_flag():
+    import re
+
     result = runner.invoke(app, ["daemon", "start", "--help"])
     assert result.exit_code == 0
-    assert "--foreground" in result.output
+    # Typer forces ANSI colors under GITHUB_ACTIONS, splitting "--" with
+    # escape codes — strip them before substring assertions.
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--foreground" in plain
 
 
 def test_run_unknown_action_lists_available(tmp_path, monkeypatch):
