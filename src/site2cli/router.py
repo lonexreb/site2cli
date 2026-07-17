@@ -126,9 +126,11 @@ def _find_action(site: SiteEntry, action_name: str) -> SiteAction | None:
         if action.name == action_name:
             return action
     wanted = _normalize_action_name(action_name)
-    for action in site.actions:
-        if _normalize_action_name(action.name) == wanted:
-            return action
+    matches = [a for a in site.actions if _normalize_action_name(a.name) == wanted]
+    if len(matches) == 1:
+        return matches[0]
+    # Zero matches, or ambiguous (several actions normalize to the same
+    # name): let the caller report the available actions.
     return None
 
 

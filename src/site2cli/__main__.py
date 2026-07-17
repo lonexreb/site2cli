@@ -3,4 +3,4 @@
 from site2cli.cli import app
 
 if __name__ == "__main__":
-    app()
+    app(prog_name="site2cli")

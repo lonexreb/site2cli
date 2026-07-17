@@ -23,6 +23,7 @@ def _spec_to_mcp_tools(site: SiteEntry, spec: dict) -> list[MCPToolSchema]:
     """Convert OpenAPI spec operations to MCP tool schemas."""
     tools = []
     domain_prefix = re.sub(r"[^a-z0-9]", "_", site.domain.split(".")[0])
+    seen_names: dict[str, int] = {}
 
     for path, path_item in spec.get("paths", {}).items():
         for http_method, operation in path_item.items():
@@ -31,6 +32,12 @@ def _spec_to_mcp_tools(site: SiteEntry, spec: dict) -> list[MCPToolSchema]:
 
             op_id = operation.get("operationId", f"{http_method}_{path}")
             tool_name = _sanitize_tool_name(f"{domain_prefix}_{op_id}")
+            # Sanitization is lossy — suffix deterministically on collision
+            # so no tool handler shadows another.
+            count = seen_names.get(tool_name, 0) + 1
+            seen_names[tool_name] = count
+            if count > 1:
+                tool_name = f"{tool_name}_{count}"
             description = operation.get("summary", op_id)
 
             # Build input schema from parameters + request body

@@ -158,28 +158,32 @@ def test_run_unknown_action_lists_available(tmp_path, monkeypatch):
     from site2cli.config import get_config, reset_config
     reset_config()
 
-    from site2cli.models import EndpointInfo, SiteAction, SiteEntry, Tier
-    from site2cli.registry import SiteRegistry
+    try:
+        from site2cli.models import EndpointInfo, SiteAction, SiteEntry, Tier
+        from site2cli.registry import SiteRegistry
 
-    config = get_config()
-    config.ensure_dirs()
-    reg = SiteRegistry(config.db_path)
-    reg.add_site(
-        SiteEntry(
-            domain="api.example.com",
-            base_url="https://api.example.com",
-            actions=[
-                SiteAction(
-                    name="get_items",
-                    tier=Tier.API,
-                    endpoint=EndpointInfo(method="GET", path_pattern="/items"),
-                )
-            ],
+        config = get_config()
+        config.ensure_dirs()
+        reg = SiteRegistry(config.db_path)
+        reg.add_site(
+            SiteEntry(
+                domain="api.example.com",
+                base_url="https://api.example.com",
+                actions=[
+                    SiteAction(
+                        name="get_items",
+                        tier=Tier.API,
+                        endpoint=EndpointInfo(method="GET", path_pattern="/items"),
+                    )
+                ],
+            )
         )
-    )
-    reg.close()
+        reg.close()
 
-    result = runner.invoke(app, ["run", "api.example.com", "totally_wrong_action"])
-    assert result.exit_code == 1
-    assert "Unknown action" in result.output
-    assert "get_items" in result.output
+        result = runner.invoke(app, ["run", "api.example.com", "totally_wrong_action"])
+        assert result.exit_code == 1
+        assert "Unknown action" in result.output
+        assert "get_items" in result.output
+    finally:
+        # Don't leak the tmp_path-bound config into subsequent tests
+        reset_config()

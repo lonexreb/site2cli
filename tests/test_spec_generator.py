@@ -144,3 +144,37 @@ def test_operation_ids_are_identifier_safe():
     spec = generate_openapi_spec(api)
     op_id = spec["paths"]["/api/users/{id}"]["get"]["operationId"]
     assert re.fullmatch(r"[a-zA-Z0-9_]+", op_id), op_id
+
+
+def test_make_unique_operation_ids_deduplicates_collisions():
+    """Lossy normalization collisions get deterministic suffixes."""
+    from site2cli.discovery.spec_generator import make_unique_operation_ids
+
+    endpoints = [
+        EndpointInfo(method="GET", path_pattern="/a-b"),
+        EndpointInfo(method="GET", path_pattern="/a_b"),
+        EndpointInfo(method="GET", path_pattern="/a.b"),
+        EndpointInfo(method="POST", path_pattern="/a-b"),
+    ]
+    ids = make_unique_operation_ids(endpoints)
+    assert ids == ["get_a_b", "get_a_b_2", "get_a_b_3", "post_a_b"]
+    assert len(set(ids)) == len(ids)
+
+
+def test_generated_spec_operation_ids_unique_on_collision():
+    api = DiscoveredAPI(
+        site_url="example.com",
+        base_url="https://api.example.com",
+        endpoints=[
+            EndpointInfo(method="GET", path_pattern="/a-b"),
+            EndpointInfo(method="GET", path_pattern="/a_b"),
+        ],
+        auth_type=AuthType.NONE,
+    )
+    spec = generate_openapi_spec(api)
+    op_ids = [
+        op["operationId"]
+        for path_item in spec["paths"].values()
+        for op in path_item.values()
+    ]
+    assert len(set(op_ids)) == len(op_ids)

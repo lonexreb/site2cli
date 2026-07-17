@@ -107,7 +107,7 @@ pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
 
-**Total: 575 tests (569 + 6 live), all passing.**
+**Total: 575 tests (569 offline + 6 live; live tests require network access and are reported separately).**
 
 **Test files:**
 - `test_analyzer.py` — Traffic analysis & grouping (23 tests)

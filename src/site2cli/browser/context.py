@@ -59,7 +59,7 @@ async def create_browser_context(
 
     try:
         # Resolve proxy settings (explicit argument wins over config)
-        proxy_config = proxy or config.proxy.get_playwright_proxy()
+        proxy_config = proxy if proxy is not None else config.proxy.get_playwright_proxy()
 
         if profile:
             # Profile mode: launch_persistent_context with user data dir

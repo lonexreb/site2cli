@@ -258,3 +258,23 @@ def test_mcp_tool_names_are_spec_valid():
     assert tools
     for tool in tools:
         assert re.fullmatch(r"[a-zA-Z0-9_-]+", tool.name), tool.name
+
+
+def test_mcp_tool_names_deduplicated_on_sanitization_collision():
+    """Sanitized tool names that collide get deterministic suffixes."""
+    from site2cli.generators.mcp_gen import _spec_to_mcp_tools
+
+    spec = _make_spec(
+        {
+            "/a-b": {
+                "get": {"operationId": "get_a-b", "responses": {}},
+            },
+            "/a_b": {
+                "get": {"operationId": "get_a_b", "responses": {}},
+            },
+        }
+    )
+    site = _make_site(domain="example.com", base_url="https://api.example.com")
+    tools = _spec_to_mcp_tools(site, spec)
+    names = [t.name for t in tools]
+    assert len(set(names)) == len(names), names

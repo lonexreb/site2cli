@@ -101,7 +101,7 @@ def discover(
     )
     from site2cli.discovery.spec_generator import (
         generate_openapi_spec,
-        make_operation_id,
+        make_unique_operation_ids,
         save_spec,
     )
     from site2cli.discovery.trace import load_trace, save_trace
@@ -227,14 +227,15 @@ def discover(
 
     # Step 6: Register site
     registry = _get_registry()
+    action_names = make_unique_operation_ids(endpoints)
     actions = [
         SiteAction(
-            name=make_operation_id(ep),
+            name=name,
             description=ep.description,
             tier=Tier.API,
             endpoint=ep,
         )
-        for ep in endpoints
+        for ep, name in zip(endpoints, action_names)
     ]
     site = SiteEntry(
         domain=domain,
@@ -253,10 +254,10 @@ def discover(
         f"[bold green]Discovered {len(endpoints)}"
         f" capabilities for {domain}:[/bold green]"
     )
-    for ep in endpoints:
+    for ep, action_name in zip(endpoints, action_names):
         name = ep.description or f"{ep.method} {ep.path_pattern}"
         params = ", ".join(p.name for p in ep.parameters[:5])
-        console.print(f"  - {name} ({params})  [dim]run: {make_operation_id(ep)}[/dim]")
+        console.print(f"  - {name} ({params})  [dim]run: {action_name}[/dim]")
 
 
 @app.command()
