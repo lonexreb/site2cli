@@ -253,3 +253,32 @@ def test_group_multiple_methods_same_path():
     assert "GET /items" in groups
     assert "POST /items" in groups
     assert "DELETE /items/{id}" in groups
+
+
+def test_infer_query_param_type():
+    from site2cli.discovery.analyzer import _infer_query_param_type
+
+    assert _infer_query_param_type("5") == "integer"
+    assert _infer_query_param_type("-12") == "integer"
+    assert _infer_query_param_type("3.14") == "number"
+    assert _infer_query_param_type("true") == "boolean"
+    assert _infer_query_param_type("False") == "boolean"
+    assert _infer_query_param_type("widget") == "string"
+    assert _infer_query_param_type("") == "string"
+    assert _infer_query_param_type(None) == "string"
+
+
+def test_query_params_typed_from_examples():
+    """Numeric query params should be typed integer, consistent with body params."""
+    exchanges = [
+        _make_exchange(
+            "GET",
+            "https://api.example.com/search?q=test&limit=10",
+            resp_body='{"results": []}',
+        ),
+    ]
+    analyzer = TrafficAnalyzer(exchanges)
+    endpoints = analyzer.extract_endpoints()
+    params = {p.name: p.param_type for p in endpoints[0].parameters}
+    assert params["limit"] == "integer"
+    assert params["q"] == "string"

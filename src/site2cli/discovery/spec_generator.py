@@ -3,9 +3,22 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from site2cli.models import DiscoveredAPI, EndpointInfo, ParameterInfo
+
+
+def make_operation_id(endpoint: EndpointInfo) -> str:
+    """Build the canonical operation/action ID for an endpoint.
+
+    Produces identifier-safe names like ``get_api_users_id`` so the same ID
+    works as an OpenAPI operationId, a registry action name, a generated
+    client method, and an MCP tool-name component.
+    """
+    raw = endpoint.description or f"{endpoint.method} {endpoint.path_pattern}"
+    op_id = re.sub(r"[^a-zA-Z0-9]+", "_", raw.lower()).strip("_")
+    return op_id or "operation"
 
 
 def _param_to_openapi(param: ParameterInfo) -> dict:
@@ -38,9 +51,7 @@ def _param_to_openapi(param: ParameterInfo) -> dict:
 def _endpoint_to_openapi_path(endpoint: EndpointInfo) -> dict:
     """Convert an EndpointInfo to an OpenAPI path item operation."""
     operation: dict = {
-        "operationId": endpoint.description.replace(" ", "_").lower()
-        if endpoint.description
-        else f"{endpoint.method.lower()}_{endpoint.path_pattern.replace('/', '_').strip('_')}",
+        "operationId": make_operation_id(endpoint),
         "summary": endpoint.description or f"{endpoint.method} {endpoint.path_pattern}",
     }
 

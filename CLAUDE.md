@@ -102,12 +102,12 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 553 unit/integration tests (no network)
+pytest                    # 569 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
 
-**Total: 559 tests (553 + 6 live), all passing in <8s.**
+**Total: 575 tests (569 + 6 live), all passing.**
 
 **Test files:**
 - `test_analyzer.py` — Traffic analysis & grouping (23 tests)
@@ -150,7 +150,6 @@ pytest -v                 # Verbose output
 - `test_monitor.py` — Diff computation, watcher, webhook, registry CRUD (41 tests)
 - `test_screenshot.py` — Screenshot model, CLI help, formats (8 tests)
 
-**Total: 500 tests (494 + 6 live), all passing.**
 
 ## Live Validation (8 Experiments)
 

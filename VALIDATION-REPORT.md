@@ -130,6 +130,29 @@ providers, experiments 8–15 (network policy).
 
 ---
 
+## Update: all 8 bugs fixed
+
+All bugs below were fixed on this branch and re-verified live against the same
+local test site (plus 16 new regression tests; suite now 569 passing):
+
+1. Digit-leading hosts now generate `class Site127001Client:` (valid Python).
+2. `discover` stores absolute spec/client paths; `mcp generate` also falls back
+   to `~/.site2cli/specs/` for legacy relative entries.
+3. Action names are now canonical operationIds (`get_api_products`) shared by
+   the spec, registry, clients, and MCP tools; `discover` prints the runnable
+   name per endpoint; unknown actions fail fast listing valid names (with
+   normalized matching for legacy `GET_/path` registries).
+4. robots.txt is fetched from the full `host:port` netloc; the crawler no
+   longer fetches `Disallow`ed paths on non-standard ports.
+5. `screenshot` works (context factory gained a `proxy` override; capture now
+   passes `session_manager`/`session_name`).
+6. MCP tool names are sanitized to `^[a-zA-Z0-9_-]+$`, and query params are
+   type-inferred (`limit=5` → integer) so tool schemas are consistent.
+7. `daemon start` detaches by default (logs to `~/.site2cli/daemon.log`);
+   `--foreground` preserves the old behavior.
+8. Health checks fall back to GET when a server answers 405/501 to
+   HEAD/OPTIONS — no more BROKEN reports for healthy endpoints.
+
 ## How big a deal is it?
 
 The differentiated core — watch a site's own frontend traffic, formalize it into a typed,

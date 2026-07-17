@@ -93,3 +93,20 @@ class TestRobotsParser:
             await checker.load()
 
         assert checker.is_allowed("https://nonexistent-domain-12345.com/anything") is True
+
+
+class TestRobotsURL:
+    def test_robots_url_includes_port(self):
+        rc = RobotsChecker("example.com:8080", "http")
+        assert rc.robots_url == "http://example.com:8080/robots.txt"
+
+    def test_robots_url_standard(self):
+        rc = RobotsChecker("example.com", "https")
+        assert rc.robots_url == "https://example.com/robots.txt"
+
+    def test_crawler_passes_netloc_with_port(self):
+        from site2cli.crawl.crawler import SiteCrawler
+
+        crawler = SiteCrawler("http://127.0.0.1:8777/")
+        assert crawler.netloc == "127.0.0.1:8777"
+        assert crawler.domain == "127.0.0.1"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from site2cli.config import get_config
 from site2cli.models import SiteAction, SiteEntry, Tier
 from site2cli.registry import SiteRegistry
@@ -37,7 +39,12 @@ class Router:
 
         action = _find_action(site, action_name)
         if not action:
-            return await self._fallback_browser(domain, action_name, params)
+            # A known site with an unknown action is a user error: fail fast
+            # with the valid names instead of silently launching a browser.
+            return {
+                "error": f"Unknown action '{action_name}' for {domain}",
+                "available_actions": [a.name for a in site.actions],
+            }
 
         # Try the action's current tier, then fall back
         tiers_to_try = _tier_fallback_order(action.tier)
@@ -45,11 +52,11 @@ class Router:
         for tier in tiers_to_try:
             try:
                 result = await self._execute_tier(site, action, tier, params)
-                self._registry.record_action_result(domain, action_name, success=True)
+                self._registry.record_action_result(domain, action.name, success=True)
                 self._maybe_promote(domain, action)
                 return result
             except Exception:
-                self._registry.record_action_result(domain, action_name, success=False)
+                self._registry.record_action_result(domain, action.name, success=False)
                 continue
 
         return {"error": f"All tiers failed for {domain}/{action_name}"}
@@ -103,10 +110,24 @@ class Router:
             self._registry.update_action_tier(domain, action.name, new_tier)
 
 
+def _normalize_action_name(name: str) -> str:
+    """Normalize an action name for tolerant matching."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
 def _find_action(site: SiteEntry, action_name: str) -> SiteAction | None:
-    """Find an action by name in a site entry."""
+    """Find an action by name in a site entry.
+
+    Matches exactly first, then falls back to normalized comparison so
+    operationId-style names (``get_api_products``) resolve against legacy
+    registry entries (``GET_/api/products``) and vice versa.
+    """
     for action in site.actions:
         if action.name == action_name:
+            return action
+    wanted = _normalize_action_name(action_name)
+    for action in site.actions:
+        if _normalize_action_name(action.name) == wanted:
             return action
     return None
 

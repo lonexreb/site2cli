@@ -108,21 +108,48 @@ class TestExecuteUnknownDomain:
 
 
 class TestExecuteUnknownAction:
-    """execute() should fall back to browser when action is not registered."""
+    """execute() should fail fast with valid names for unknown actions."""
 
     @pytest.mark.asyncio
-    async def test_unknown_action_calls_fallback_browser(self, registry):
+    async def test_unknown_action_returns_error_with_available_actions(self, registry):
         site = _make_api_site()
         registry.add_site(site)
         router = Router(registry)
-        expected = {"fallback": True}
 
         async def mock_execute_action(url, action, params):
-            return expected
+            raise AssertionError("browser fallback must not run for unknown actions")
 
         router._browser.execute_action = mock_execute_action
 
         result = await router.execute("api.example.com", "nonexistent_action", {})
+        assert "error" in result
+        assert "nonexistent_action" in result["error"]
+        assert result["available_actions"] == ["get_data"]
+
+    @pytest.mark.asyncio
+    async def test_action_name_matches_normalized_legacy_style(self, registry):
+        """operationId-style names resolve legacy 'GET_/path' registry entries."""
+        site = SiteEntry(
+            domain="legacy.example.com",
+            base_url="https://legacy.example.com",
+            actions=[
+                SiteAction(
+                    name="GET_/api/products",
+                    tier=Tier.API,
+                    endpoint=EndpointInfo(method="GET", path_pattern="/api/products"),
+                )
+            ],
+        )
+        registry.add_site(site)
+        router = Router(registry)
+        expected = {"status_code": 200, "data": []}
+
+        async def mock_api_execute(site_arg, endpoint, params):
+            return expected
+
+        router._direct_api.execute = mock_api_execute
+
+        result = await router.execute("legacy.example.com", "get_api_products", {})
         assert result == expected
 
 

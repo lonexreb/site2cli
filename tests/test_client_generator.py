@@ -95,3 +95,20 @@ def test_generate_client_custom_class_name():
     }
     code = generate_client_code(spec, class_name="MyCustomClient")
     assert "class MyCustomClient" in code
+
+
+def test_generate_client_digit_leading_title():
+    """Hosts starting with a digit (IPs, 9gag.com) must yield valid identifiers."""
+    spec = {
+        "openapi": "3.1.0",
+        "info": {"title": "127.0.0.1 API", "version": "1.0.0"},
+        "servers": [{"url": "http://127.0.0.1:8777"}],
+        "paths": {
+            "/api/items": {
+                "get": {"operationId": "get_api_items", "parameters": []},
+            },
+        },
+    }
+    code = generate_client_code(spec)
+    compile(code, "<generated>", "exec")  # raises SyntaxError if broken
+    assert "class Site127001Client:" in code
