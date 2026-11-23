@@ -96,7 +96,7 @@ class DirectAPIExecutor:
             client = client_class(
                 base_url=site.base_url,
                 headers=self._auth.get_auth_headers(site.domain, site.auth_type),
-                cookies=self._auth.get_auth_cookies(site.domain),
+                cookies=self._auth.get_httpx_cookies(site.domain),
             )
             method = getattr(client, endpoint.description.replace(" ", "_").lower(), None)
             if method is None:
@@ -131,7 +131,7 @@ class DirectAPIExecutor:
                     body_params[p.name] = params[p.name]
 
         headers = self._auth.get_auth_headers(site.domain, site.auth_type)
-        cookies = self._auth.get_auth_cookies(site.domain)
+        cookies = self._auth.get_httpx_cookies(site.domain)
 
         client_kwargs: dict = {
             "headers": headers,

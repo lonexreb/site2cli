@@ -175,13 +175,13 @@ class {class_name}:
         self,
         base_url: str = "{base_url}",
         headers: dict[str, str] | None = None,
-        cookies: dict[str, str] | None = None,
+        cookies: httpx.Cookies | dict[str, str] | None = None,
         timeout: float = 30.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = httpx.Client(
             headers=headers or {{}},
-            cookies=cookies or {{}},
+            cookies=cookies,
             timeout=timeout,
         )
 

@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import time
+from http.cookiejar import Cookie
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from site2cli.config import get_config
 
@@ -71,8 +75,9 @@ class CookieManager:
     ) -> None:
         """Set a single cookie for a domain."""
         cookies = self.list(domain)
-        # Remove existing cookie with same name
-        cookies = [c for c in cookies if c["name"] != name]
+        # Replace only the cookie with the same identity; the same name on
+        # another path is a different cookie.
+        cookies = [c for c in cookies if (c["name"], c["path"]) != (name, path)]
         cookies.append(self._normalize_cookie({
             "name": name,
             "value": value,
@@ -152,3 +157,50 @@ class CookieManager:
             }
             for name, value in flat.items()
         ]
+
+
+def to_httpx_cookies(cookies: list[dict[str, Any]] | dict[str, str] | None) -> httpx.Cookies:
+    """Convert stored browser cookies to a scoped HTTPX cookie jar.
+
+    Domain, path, secure and expiry are preserved, so each request only
+    receives the cookies a browser would send. A legacy flat ``{name: value}``
+    dict is accepted and stays unscoped, as it always was.
+
+    ponytail: HTTPX rebuilds the jar with the stdlib default policy, which
+    also sends a host-only cookie to subdomains of that host. Never to another
+    site. Needs a custom transport-level cookie policy if that ever matters.
+    """
+    if isinstance(cookies, dict):
+        return httpx.Cookies(cookies)
+    jar = httpx.Cookies()
+    now = time.time()
+    for c in cookies or []:
+        name, domain = c.get("name"), c.get("domain", "")
+        if not name or not domain:
+            continue
+        expires = c.get("expires", -1)
+        # Playwright uses -1 for session cookies.
+        session = expires is None or expires < 0
+        if not session and expires <= now:
+            continue
+        jar.jar.set_cookie(
+            Cookie(
+                version=0,
+                name=name,
+                value=c.get("value", ""),
+                port=None,
+                port_specified=False,
+                domain=domain,
+                domain_specified=domain.startswith("."),
+                domain_initial_dot=domain.startswith("."),
+                path=c.get("path") or "/",
+                path_specified=True,
+                secure=bool(c.get("secure", False)),
+                expires=None if session else int(expires),
+                discard=session,
+                comment=None,
+                comment_url=None,
+                rest={},
+            )
+        )
+    return jar
