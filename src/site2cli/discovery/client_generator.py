@@ -177,12 +177,14 @@ class {class_name}:
         headers: dict[str, str] | None = None,
         cookies: httpx.Cookies | dict[str, str] | None = None,
         timeout: float = 30.0,
+        proxy: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = httpx.Client(
             headers=headers or {{}},
             cookies=cookies,
             timeout=timeout,
+            proxy=proxy,
         )
 
     def close(self) -> None:

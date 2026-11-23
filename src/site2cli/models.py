@@ -116,6 +116,18 @@ class DiscoveredAPI(BaseModel):
 # --- Site Registry models ---
 
 
+class Transport(str, enum.Enum):
+    """What is known about how an action can be executed.
+
+    Seeing a request succeed in Chromium does not show that the same request
+    works from a plain HTTP client, so the two are tracked separately.
+    """
+
+    HTTP_CANDIDATE = "http_candidate"  # captured in a browser; direct HTTP unproven
+    HTTP_VERIFIED = "http_verified"  # a direct HTTP execution has succeeded
+    BROWSER_REQUIRED = "browser_required"  # explicit: never use direct HTTP
+
+
 class SiteAction(BaseModel):
     """A specific action available on a site."""
 
@@ -124,6 +136,7 @@ class SiteAction(BaseModel):
     tier: Tier = Tier.BROWSER
     endpoint: EndpointInfo | None = None
     workflow_id: str | None = None  # Reference to cached workflow
+    transport: Transport = Transport.HTTP_CANDIDATE
     success_count: int = 0
     failure_count: int = 0
     last_used: datetime | None = None

@@ -19,6 +19,7 @@ from site2cli.models import (
     SiteAction,
     SiteEntry,
     Tier,
+    Transport,
 )
 
 
@@ -36,6 +37,7 @@ class SiteRegistry:
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._create_tables()
+            self._migrate()
         return self._conn
 
     def _create_tables(self) -> None:
@@ -175,13 +177,35 @@ class SiteRegistry:
             self._add_action(site.domain, action)
         self.conn.commit()
 
+    def _migrate(self) -> None:
+        """Add columns introduced after a database was first created."""
+        # Existing rows become "http_candidate": they keep executing exactly as
+        # before (direct HTTP is still tried), they are just not called verified.
+        try:
+            self.conn.execute(
+                "ALTER TABLE actions ADD COLUMN transport TEXT DEFAULT 'http_candidate'"
+            )
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+    def update_action_transport(
+        self, domain: str, action_name: str, transport: Transport
+    ) -> bool:
+        cursor = self.conn.execute(
+            "UPDATE actions SET transport = ? WHERE site_domain = ? AND name = ?",
+            (transport.value, domain, action_name),
+        )
+        self.conn.commit()
+        return cursor.rowcount > 0
+
     def _add_action(self, domain: str, action: SiteAction) -> None:
         endpoint_json = action.endpoint.model_dump_json() if action.endpoint else None
         self.conn.execute(
             """INSERT OR REPLACE INTO actions
                (site_domain, name, description, tier, endpoint_json, workflow_id,
-                success_count, failure_count, last_used, last_checked, health)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                success_count, failure_count, last_used, last_checked, health, transport)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 domain,
                 action.name,
@@ -194,6 +218,7 @@ class SiteRegistry:
                 action.last_used.isoformat() if action.last_used else None,
                 action.last_checked.isoformat() if action.last_checked else None,
                 action.health.value,
+                action.transport.value,
             ),
         )
 
@@ -246,6 +271,7 @@ class SiteRegistry:
                         else None
                     ),
                     health=HealthStatus(row["health"]),
+                    transport=Transport(row["transport"] or "http_candidate"),
                 )
             )
         return actions
