@@ -27,5 +27,10 @@ jobs:
       - name: Lint
         run: ruff check src/ tests/
 
+      # One job runs the real-browser tests; they skip where Chromium is absent.
+      - name: Install Chromium
+        if: matrix.python-version == '3.12'
+        run: playwright install --with-deps chromium
+
       - name: Run tests
         run: pytest -m "not live" -v

@@ -42,20 +42,30 @@ async def create_browser_context(
     """
     config = get_config()
 
-    # If session_manager can provide an existing session, use it
-    if session_manager and session_name:
-        existing = session_manager.get(session_name)
+    from site2cli.browser.session import current_session, get_session_manager
+
+    session_name = session_name or current_session.get() or config.browser.session
+    if session_name and session_manager is None:
+        session_manager = get_session_manager()
+    managed = bool(session_manager and session_name)
+
+    if managed:
+        existing = session_manager.get(session_name, profile)
         if existing:
             browser, context = existing
             page = await context.new_page()
-            yield browser, context, page
+            try:
+                yield browser, context, page
+            finally:
+                await _close_temp_page(context, page)
             return
 
     from playwright.async_api import async_playwright
 
-    pw_cm = async_playwright()
-    pw: Playwright = await pw_cm.__aenter__()
+    pw: Playwright = await async_playwright().start()
     browser: Browser | None = None
+    context: BrowserContext | None = None
+    registered = False
 
     try:
         # Resolve proxy settings (explicit argument wins over config)
@@ -104,16 +114,31 @@ async def create_browser_context(
             except Exception:
                 pass
 
-        # Register with session manager if requested
-        if session_manager and session_name:
-            session_manager.register(session_name, browser, context)
+        if managed:
+            # The session manager now owns the driver, browser and context.
+            session_manager.register(session_name, browser, context, pw, profile)
+            registered = True
 
-        yield browser, context, page  # type: ignore[arg-type]
+        yield browser, context, page  # type: ignore[misc]
     finally:
-        if not (session_manager and session_name):
-            # Only close if not managed by a session
+        if registered:
+            await _close_temp_page(context, page)  # type: ignore[arg-type]
+        else:
             if browser:
                 await browser.close()
-            elif profile:
-                await context.close()  # type: ignore[possibly-undefined]
-        await pw_cm.__aexit__(None, None, None)
+            elif context:
+                await context.close()
+            await pw.stop()
+
+
+async def _close_temp_page(context: BrowserContext, page: Page) -> None:
+    """Close a per-call page in a long-lived session so pages don't pile up.
+
+    The last page is left open: closing every page of a persistent profile
+    context can take the browser down with it.
+    """
+    try:
+        if len(context.pages) > 1:
+            await page.close()
+    except Exception:
+        pass  # the browser is already gone; the next get() reports it

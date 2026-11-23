@@ -46,7 +46,8 @@ class DaemonClient:
             writer.write(json.dumps(request).encode())
             await writer.drain()
 
-            data = await reader.read(65536)
+            # The server closes the connection after replying; read it all.
+            data = await reader.read()
             response = json.loads(data.decode())
 
             if "error" in response:

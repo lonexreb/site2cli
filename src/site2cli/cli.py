@@ -42,6 +42,27 @@ def _get_registry():
     return SiteRegistry(config.db_path)
 
 
+def _daemon_call(method: str, params: dict) -> dict:
+    """Call the daemon, which owns named browser sessions.
+
+    A session only outlives a command inside the daemon, so there is no
+    in-process fallback: without a daemon the user is told how to start one.
+    """
+    from site2cli.daemon.client import DaemonClient
+
+    try:
+        return _run_async(DaemonClient(get_config().daemon_socket_path).send(method, params))
+    except (ConnectionError, OSError):
+        console.print(
+            "[red]Named sessions live in the site2cli daemon, which is not running.[/red]\n"
+            "Start it with: site2cli daemon start"
+        )
+        raise typer.Exit(1)
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+
 def _run_async(coro):
     """Run an async function from sync context."""
     try:
@@ -122,12 +143,21 @@ def discover(
     config.browser.headless = headless
     if profile:
         config.browser.profile = profile
-    if session:
-        config.browser.session = session
     if proxy:
         config.proxy.url = proxy
 
     console.print(f"[bold]Discovering APIs for[/bold] {domain}...")
+
+    if session and not replay:
+        # Capture inside the daemon's session, then continue from its trace.
+        import tempfile
+
+        replay = str(Path(tempfile.mkdtemp(prefix="site2cli-")) / "trace.json")
+        with console.status(f"[bold green]Capturing in session '{session}'..."):
+            _daemon_call(
+                "discover",
+                {"url": url, "session": session, "action": action, "trace_path": replay},
+            )
 
     # Step 1: Capture traffic (or replay from a saved trace)
     capture = TrafficCapture(target_domain=domain)
@@ -288,8 +318,6 @@ def run(
         config.browser.headless = False
     if profile:
         config.browser.profile = profile
-    if session:
-        config.browser.session = session
     if proxy:
         config.proxy.url = proxy
 
@@ -305,7 +333,13 @@ def run(
                 param_dict[k] = v
 
     with console.status(f"[bold green]Executing {action} on {domain}..."):
-        result = _run_async(router.execute(domain, action, param_dict))
+        if session:
+            result = _daemon_call(
+                "execute",
+                {"session": session, "domain": domain, "action": action, "params": param_dict},
+            )
+        else:
+            result = _run_async(router.execute(domain, action, param_dict))
 
     if isinstance(result, dict) and "error" in result and "available_actions" in result:
         console.print(f"[red]{result['error']}[/red]")
@@ -1371,11 +1405,8 @@ app.add_typer(session_app, name="session")
 
 @session_app.command("list")
 def session_list() -> None:
-    """List active browser sessions."""
-    from site2cli.browser.session import get_session_manager
-
-    sm = get_session_manager()
-    sessions = sm.list()
+    """List browser sessions held by the daemon."""
+    sessions = _daemon_call("list_sessions", {}).get("sessions", [])
     if not sessions:
         console.print("[yellow]No active sessions.[/yellow]")
         return
@@ -1387,21 +1418,15 @@ def session_list() -> None:
 def session_close(
     name: str = typer.Argument(help="Session name to close"),
 ) -> None:
-    """Close a browser session."""
-    from site2cli.browser.session import get_session_manager
-
-    sm = get_session_manager()
-    _run_async(sm.close(name))
+    """Close a browser session held by the daemon."""
+    _daemon_call("close_session", {"name": name})
     console.print(f"[green]Closed session '{name}'[/green]")
 
 
 @session_app.command("close-all")
 def session_close_all() -> None:
-    """Close all browser sessions."""
-    from site2cli.browser.session import get_session_manager
-
-    sm = get_session_manager()
-    _run_async(sm.close_all())
+    """Close all browser sessions held by the daemon."""
+    _daemon_call("close_all_sessions", {})
     console.print("[green]Closed all sessions[/green]")
 
 

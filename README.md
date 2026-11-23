@@ -337,7 +337,8 @@ site2cli auth profile-import --browser chrome
 site2cli cookies list example.com
 site2cli cookies export example.com
 
-# Reuse browser sessions across commands
+# Reuse browser sessions across commands (sessions live in the daemon)
+site2cli daemon start
 site2cli discover example.com --session my-session
 site2cli run example.com search --session my-session
 
