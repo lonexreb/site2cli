@@ -151,7 +151,7 @@ def generate_client_code(spec: dict, class_name: str | None = None) -> str:
         {body_lines.strip()}
         response = self._client.request({", ".join(request_args)})
         response.raise_for_status()
-        return response.json()
+        return response.json() if response.content else None
 '''.rstrip()
 
             methods.append(method_code)

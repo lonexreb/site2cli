@@ -314,6 +314,13 @@ def run(
             console.print(f"  - {name}")
         raise typer.Exit(1)
 
+    from site2cli.outcome import Outcome, outcome_of
+
+    if outcome_of(result) is not Outcome.SUCCESS:
+        # Machine-readable on stdout, non-zero exit: the action did not complete.
+        print(json.dumps(result, indent=None if compact else 2, default=str))
+        raise typer.Exit(1)
+
     # Apply output filters
     if grep or limit is not None or keys_only:
         from site2cli.output_filter import filter_result

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import httpx
 
 from site2cli.auth.manager import AuthManager
 from site2cli.config import get_config
 from site2cli.models import EndpointInfo, SiteEntry
+from site2cli.outcome import Outcome, classify_exception, classify_response
 
 
 class DirectAPIExecutor:
@@ -35,19 +39,36 @@ class DirectAPIExecutor:
         Returns:
             Dict with the API response.
         """
+        expects_json = _expects_json(endpoint)
+
         # Try to use generated client first
-        if site.client_module_path:
-            result = self._execute_with_client(site, endpoint, params)
-            if result is not None:
-                return result
+        call = self._load_client_call(site, endpoint, params)
+        if call is not None:
+            client, method = call
+            # From here the request may reach the server: never fall through
+            # to a second request, whatever happens.
+            try:
+                data = method(**params)
+            except Exception as exc:
+                return {**classify_exception(exc), "transport": "generated_client"}
+            finally:
+                client.close()
+            return {
+                "outcome": Outcome.SUCCESS.value,
+                "data": data,
+                "transport": "generated_client",
+            }
 
-        # Fall back to direct HTTP
-        return await self._execute_http(site, endpoint, params)
+        return await self._execute_http(site, endpoint, params, expects_json)
 
-    def _execute_with_client(
+    def _load_client_call(
         self, site: SiteEntry, endpoint: EndpointInfo, params: dict
-    ) -> dict | None:
-        """Try to execute using a generated Python client."""
+    ) -> tuple[Any, Callable[..., Any]] | None:
+        """Resolve the generated client method for an endpoint.
+
+        Returns None when the client cannot be used. Nothing is dispatched
+        here, so the caller may safely use raw HTTP instead.
+        """
         client_path = Path(site.client_module_path) if site.client_module_path else None
         if not client_path or not client_path.exists():
             return None
@@ -59,37 +80,38 @@ class DirectAPIExecutor:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
-            # Find the client class
-            client_class = None
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if isinstance(attr, type) and attr_name.endswith("Client"):
-                    client_class = attr
-                    break
-
+            client_class = next(
+                (
+                    attr
+                    for name, attr in vars(module).items()
+                    if isinstance(attr, type) and name.endswith("Client")
+                ),
+                None,
+            )
             if not client_class:
                 return None
 
-            headers = self._auth.get_auth_headers(site.domain, site.auth_type)
-            cookies = self._auth.get_auth_cookies(site.domain)
-
-            with client_class(
+            client = client_class(
                 base_url=site.base_url,
-                headers=headers,
-                cookies=cookies,
-            ) as client:
-                # Find the method matching the endpoint
-                method_name = endpoint.description.replace(" ", "_").lower()
-                if hasattr(client, method_name):
-                    method = getattr(client, method_name)
-                    return method(**params)
-
+                headers=self._auth.get_auth_headers(site.domain, site.auth_type),
+                cookies=self._auth.get_auth_cookies(site.domain),
+            )
+            method = getattr(client, endpoint.description.replace(" ", "_").lower(), None)
+            if method is None:
+                client.close()
+                return None
+            # Reject bad arguments now rather than after a request is built.
+            inspect.signature(method).bind(**params)
+            return client, method
         except Exception:
             return None
-        return None
 
     async def _execute_http(
-        self, site: SiteEntry, endpoint: EndpointInfo, params: dict
+        self,
+        site: SiteEntry,
+        endpoint: EndpointInfo,
+        params: dict,
+        expects_json: bool = False,
     ) -> dict:
         """Execute a direct HTTP request."""
         url = site.base_url.rstrip("/") + endpoint.path_pattern
@@ -119,20 +141,24 @@ class DirectAPIExecutor:
             client_kwargs["proxy"] = proxy_url
 
         async with httpx.AsyncClient(**client_kwargs) as client:
-            response = await client.request(
-                endpoint.method,
-                url,
-                params=query_params or None,
-                json=body_params or None,
-            )
-
-        try:
-            data = response.json()
-        except Exception:
-            data = {"text": response.text, "status_code": response.status_code}
+            try:
+                response = await client.request(
+                    endpoint.method,
+                    url,
+                    params=query_params or None,
+                    json=body_params or None,
+                )
+            except httpx.HTTPError as exc:
+                return {**classify_exception(exc), "transport": "http"}
 
         return {
-            "status_code": response.status_code,
-            "data": data,
-            "headers": dict(response.headers),
+            **classify_response(response, expects_json=expects_json),
+            "transport": "http",
         }
+
+
+def _expects_json(endpoint: EndpointInfo) -> bool:
+    """Whether discovery recorded this endpoint as returning JSON."""
+    if endpoint.response_content_type:
+        return "json" in endpoint.response_content_type.lower()
+    return endpoint.response_schema is not None or endpoint.example_response is not None

@@ -11,6 +11,7 @@ from site2cli.models import (
     StepResult,
 )
 from site2cli.orchestration.data_flow import resolve_params
+from site2cli.outcome import Outcome, outcome_of
 from site2cli.router import Router
 
 
@@ -78,6 +79,11 @@ class Orchestrator:
             try:
                 result = await self._router.execute(domain, action, params)
                 duration = (time.time() - start) * 1000
+                outcome = outcome_of(result)
+                if outcome is not Outcome.SUCCESS:
+                    last_error = str(result.get("error", outcome.value))
+                    # The router already decided a replay is unsafe or pointless.
+                    break
                 return StepResult(
                     step_id=step_id,
                     domain=domain,

@@ -6,6 +6,14 @@ import re
 
 from site2cli.config import get_config
 from site2cli.models import SiteAction, SiteEntry, Tier
+from site2cli.outcome import (
+    REJECTED,
+    SAFE_METHODS,
+    Outcome,
+    TierUnavailableError,
+    failure,
+    outcome_of,
+)
 from site2cli.registry import SiteRegistry
 from site2cli.tiers.browser_explorer import BrowserExplorer
 from site2cli.tiers.cached_workflow import WorkflowPlayer, load_workflow
@@ -47,19 +55,35 @@ class Router:
             }
 
         # Try the action's current tier, then fall back
-        tiers_to_try = _tier_fallback_order(action.tier)
-
-        for tier in tiers_to_try:
+        last: dict | None = None
+        for tier in _tier_fallback_order(action.tier):
             try:
                 result = await self._execute_tier(site, action, tier, params)
+            except TierUnavailableError:
+                continue  # Nothing was dispatched; not a failure of the action.
+            except Exception as exc:
+                # The tier started work, so completion cannot be established.
+                result = failure(
+                    Outcome.UNKNOWN,
+                    f"{domain}/{action.name}: {tier.name} tier raised "
+                    f"{type(exc).__name__}: {exc}",
+                    requires_review=True,
+                )
+
+            outcome = outcome_of(result)
+            if outcome is Outcome.SUCCESS:
                 self._registry.record_action_result(domain, action.name, success=True)
                 self._maybe_promote(domain, action)
                 return result
-            except Exception:
-                self._registry.record_action_result(domain, action.name, success=False)
-                continue
 
-        return {"error": f"All tiers failed for {domain}/{action_name}"}
+            self._registry.record_action_result(domain, action.name, success=False)
+            last = _as_failure(result, outcome, tier)
+            if not _may_try_next_tier(action, outcome, last):
+                return last
+
+        return last or failure(
+            Outcome.FAILED, f"All tiers failed for {domain}/{action_name}"
+        )
 
     async def _execute_tier(
         self,
@@ -85,7 +109,7 @@ class Router:
                 site.base_url, action.name, params
             )
 
-        raise ValueError(f"Cannot execute on tier {tier}")
+        raise TierUnavailableError(f"Cannot execute on tier {tier}")
 
     async def _fallback_browser(
         self, domain: str, action_name: str, params: dict
@@ -93,7 +117,8 @@ class Router:
         """Fall back to browser exploration for unknown sites."""
         url = f"https://{domain}"
         goal = f"{action_name}: {params}" if params else action_name
-        return await self._browser.execute_action(url, goal, params)
+        result = await self._browser.execute_action(url, goal, params)
+        return _as_failure(result, outcome_of(result), Tier.BROWSER)
 
     def _maybe_promote(self, domain: str, action: SiteAction) -> None:
         """Auto-promote action to a higher tier if it's consistently successful."""
@@ -139,3 +164,29 @@ def _tier_fallback_order(starting_tier: Tier) -> list[Tier]:
     all_tiers = [Tier.API, Tier.WORKFLOW, Tier.BROWSER]
     idx = all_tiers.index(starting_tier)
     return all_tiers[idx:] + all_tiers[:idx]
+
+
+def _as_failure(result: object, outcome: Outcome, tier: Tier) -> dict:
+    """Make sure a non-success result says so in machine-readable form."""
+    if outcome is Outcome.SUCCESS or not isinstance(result, dict):
+        return result  # type: ignore[return-value]
+    return {
+        "error": f"{tier.name} tier did not complete the action",
+        **result,
+        "outcome": outcome.value,
+        "tier": tier.name.lower(),
+    }
+
+
+def _may_try_next_tier(action: SiteAction, outcome: Outcome, result: dict) -> bool:
+    """Whether another tier may attempt the action without risking a duplicate.
+
+    Rate limits are never bypassed by switching tiers. Otherwise a retry is
+    allowed when the request provably did not execute (rejected by the server,
+    or never dispatched) or when the operation is a safe read.
+    """
+    if outcome is Outcome.RATE_LIMITED:
+        return False
+    if outcome in REJECTED or result.get("dispatched") is False:
+        return True
+    return action.endpoint is not None and action.endpoint.method.upper() in SAFE_METHODS
