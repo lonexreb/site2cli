@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 import keyring
 
-from site2cli.auth.cookies import CookieManager
+from site2cli.auth.cookies import CookieManager, to_httpx_cookies
 from site2cli.config import get_config
 from site2cli.models import AuthType, OAuthTokenData
 
@@ -82,6 +83,10 @@ class AuthManager:
     def get_auth_cookies(self, domain: str) -> list[dict[str, Any]]:
         """Get authentication cookies for a domain."""
         return self.get_cookies(domain) or []
+
+    def get_httpx_cookies(self, domain: str) -> httpx.Cookies:
+        """Get stored cookies as a scoped jar for HTTPX clients."""
+        return to_httpx_cookies(self.get_auth_cookies(domain))
 
     def extract_browser_cookies(self, domain: str) -> list[dict[str, Any]] | None:
         """Extract cookies from the user's real browser for a domain."""

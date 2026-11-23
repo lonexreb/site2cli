@@ -78,7 +78,7 @@ class _NoAuth:
     def get_auth_headers(self, *a: object) -> dict:
         return {}
 
-    def get_auth_cookies(self, *a: object) -> list:
+    def get_httpx_cookies(self, *a: object) -> list:
         return []
 
 

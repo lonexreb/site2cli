@@ -149,7 +149,7 @@ def _register_command(
             # Auth
             auth_mgr = AuthManager()
             headers = auth_mgr.get_auth_headers(s.domain, s.auth_type)
-            cookies = auth_mgr.get_auth_cookies(s.domain)
+            cookies = auth_mgr.get_httpx_cookies(s.domain)
 
             with httpx.Client(headers=headers, cookies=cookies, timeout=30) as client:
                 response = client.request(
