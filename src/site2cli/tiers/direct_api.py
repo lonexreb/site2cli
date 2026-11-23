@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import inspect
 from collections.abc import Callable
@@ -52,7 +53,8 @@ class DirectAPIExecutor:
             except Exception as exc:
                 return {**classify_exception(exc), "transport": "generated_client"}
             finally:
-                client.close()
+                with contextlib.suppress(Exception):
+                    client.close()
             return {
                 "outcome": Outcome.SUCCESS.value,
                 "data": data,

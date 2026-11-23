@@ -58,12 +58,9 @@ def outcome_of(result: object) -> Outcome:
         return Outcome.SUCCESS
     if "outcome" in result:
         return Outcome(result["outcome"])
-    if "error" in result:
-        auth = "auth" in str(result["error"]).lower()
-        return Outcome.AUTH_REQUIRED if auth else Outcome.FAILED
-    # Browser explorer: {"result": {...}, "history": [...]}
-    inner = result.get("result")
-    if isinstance(inner, dict) and "error" in inner:
+    # Tiers tag their own outcome. Untagged dicts are only read structurally:
+    # a top-level error, never the payload, which may legitimately say "error".
+    if result.get("error"):
         return Outcome.FAILED
     # Workflow replay: {"steps_executed", "steps_total", "results": [...]}
     if "steps_total" in result:
@@ -109,6 +106,12 @@ def classify_response(response: httpx.Response, *, expects_json: bool) -> dict:
     def fail(outcome: Outcome, error: str, **extra: object) -> dict:
         return {**base, **failure(outcome, error, **extra)}
 
+    if status == 429:
+        return fail(
+            Outcome.RATE_LIMITED,
+            "Rate limited (HTTP 429)",
+            retry_after=headers.get("retry-after"),
+        )
     # A JSON body is the API answering, never an interstitial. HTML that the
     # caller asked for is only a challenge if the server says so in a header.
     if headers.get("cf-mitigated", "").lower() == "challenge" or (
@@ -121,11 +124,14 @@ def classify_response(response: httpx.Response, *, expects_json: bool) -> dict:
         return fail(Outcome.AUTH_REQUIRED, "Authentication required (HTTP 401)")
     if status == 403:
         return fail(Outcome.FORBIDDEN, "Forbidden (HTTP 403)")
-    if status == 429:
+    if response.is_redirect:
+        # Redirects are not followed. After a POST this is usually
+        # post/redirect/get, i.e. the action ran: never auto-retry it.
         return fail(
-            Outcome.RATE_LIMITED,
-            "Rate limited (HTTP 429)",
-            retry_after=headers.get("retry-after"),
+            Outcome.UNEXPECTED_RESPONSE,
+            f"Unfollowed redirect (HTTP {status})",
+            location=headers.get("location"),
+            requires_review=True,
         )
     if not response.is_success:
         return fail(Outcome.FAILED, f"HTTP {status}")

@@ -59,7 +59,8 @@ class Router:
         for tier in _tier_fallback_order(action.tier):
             try:
                 result = await self._execute_tier(site, action, tier, params)
-            except TierUnavailableError:
+            except (TierUnavailableError, ImportError):
+                # ImportError: an optional dependency (e.g. Playwright) is absent.
                 continue  # Nothing was dispatched; not a failure of the action.
             except Exception as exc:
                 # The tier started work, so completion cannot be established.
@@ -78,7 +79,7 @@ class Router:
 
             self._registry.record_action_result(domain, action.name, success=False)
             last = _as_failure(result, outcome, tier)
-            if not _may_try_next_tier(action, outcome, last):
+            if not _may_try_next_tier(action, tier, outcome, last):
                 return last
 
         return last or failure(
@@ -99,7 +100,10 @@ class Router:
         elif tier == Tier.WORKFLOW and action.workflow_id:
             workflow_path = self._config.workflows_dir / f"{action.workflow_id}.json"
             if workflow_path.exists():
-                workflow = load_workflow(workflow_path)
+                try:
+                    workflow = load_workflow(workflow_path)
+                except Exception as exc:
+                    raise TierUnavailableError(f"Unreadable workflow: {exc}") from exc
                 return await self._workflow_player.replay(
                     workflow, params, start_url=site.base_url
                 )
@@ -178,15 +182,19 @@ def _as_failure(result: object, outcome: Outcome, tier: Tier) -> dict:
     }
 
 
-def _may_try_next_tier(action: SiteAction, outcome: Outcome, result: dict) -> bool:
+def _may_try_next_tier(
+    action: SiteAction, tier: Tier, outcome: Outcome, result: dict
+) -> bool:
     """Whether another tier may attempt the action without risking a duplicate.
 
     Rate limits are never bypassed by switching tiers. Otherwise a retry is
-    allowed when the request provably did not execute (rejected by the server,
-    or never dispatched) or when the operation is a safe read.
+    allowed when the request provably did not execute (one HTTP request that
+    the server rejected, or a tier that says it dispatched nothing) or when
+    the operation is a safe read. A browser or workflow run may have clicked
+    and submitted before it hit a login wall, so its rejection proves nothing.
     """
     if outcome is Outcome.RATE_LIMITED:
         return False
-    if outcome in REJECTED or result.get("dispatched") is False:
+    if result.get("dispatched") is False or (tier is Tier.API and outcome in REJECTED):
         return True
     return action.endpoint is not None and action.endpoint.method.upper() in SAFE_METHODS

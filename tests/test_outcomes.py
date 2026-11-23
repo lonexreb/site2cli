@@ -30,6 +30,8 @@ ROUTES: dict[str, tuple[int, str, str, dict[str, str]]] = {
     "/401": (401, "application/json", '{"detail": "login"}', {}),
     "/403": (403, "application/json", '{"detail": "no"}', {}),
     "/429": (429, "application/json", "{}", {"Retry-After": "7"}),
+    "/303": (303, "text/html", "", {"Location": "/done"}),
+    "/429c": (429, "text/html", CHALLENGE, {"cf-mitigated": "challenge"}),
     "/challenge": (200, "text/html", CHALLENGE, {}),
     "/html": (200, "text/html", ARTICLE, {}),
     "/garbage": (200, "application/json", "not json", {}),
@@ -240,10 +242,55 @@ def test_failed_workflow_and_browser_results_are_not_success():
         "results": [{"step": 0, "success": False, "error": "no selector"}],
     }
     assert outcome_of(failed_step) is Outcome.FAILED
-    assert outcome_of({"result": {"error": "gave up"}, "history": []}) is Outcome.FAILED
-    assert outcome_of({"error": "Auth required"}) is Outcome.AUTH_REQUIRED
+    assert outcome_of({"error": "browser crashed"}) is Outcome.FAILED
+    # The browser agent ran out of steps or its LLM call failed.
+    assert outcome_of({"result": {}, "history": [], "outcome": "failed"}) is Outcome.FAILED
     complete = {"steps_executed": 1, "steps_total": 1, "results": [{"success": True}]}
     assert outcome_of(complete) is Outcome.SUCCESS
+
+
+def test_payload_mentioning_error_or_author_is_still_success():
+    scraped = {"result": {"error": "Invalid ZIP", "author": "x"}, "outcome": "success"}
+    assert outcome_of(scraped) is Outcome.SUCCESS
+    assert outcome_of({"data": {"error": None}, "error": None}) is Outcome.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_browser_rejection_never_triggers_an_api_send(env):
+    """A browser run may have submitted the form before hitting a login wall."""
+    make, _, server = env
+    router = make("/ok", "POST")
+    site = router._registry.get_site("local.test")
+    site.actions[0].tier = Tier.BROWSER
+    router._registry.add_site(site)
+
+    async def walled(*a: object) -> dict:
+        return {"error": "Auth required", "outcome": "auth_required"}
+
+    router._browser.execute_action = walled
+    result = await _run(router)
+    assert result["outcome"] == "auth_required"
+    assert server.hits == {}
+
+
+@pytest.mark.asyncio
+async def test_redirect_after_post_is_not_retried_or_counted(env):
+    make, counts, server = env
+    router = make("/303", "POST")
+    result = await _run(router)
+    assert result["outcome"] == "unexpected_response"
+    assert result["location"] == "/done" and result["requires_review"] is True
+    assert server.hits == {"/303": 1} and router._browser.calls == 0
+    assert counts()[:2] == (0, 1)
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_wins_over_challenge_header(env):
+    make, _, server = env
+    router = make("/429c")
+    result = await _run(router)
+    assert result["outcome"] == "rate_limited"
+    assert router._browser.calls == 0
 
 
 def test_cli_exits_nonzero_with_machine_readable_outcome(monkeypatch):

@@ -74,6 +74,7 @@ class Orchestrator:
     ) -> StepResult:
         """Execute a single step, retrying on failure."""
         last_error = ""
+        failed_result: dict = {}
         for attempt in range(retries + 1):
             start = time.time()
             try:
@@ -82,6 +83,7 @@ class Orchestrator:
                 outcome = outcome_of(result)
                 if outcome is not Outcome.SUCCESS:
                     last_error = str(result.get("error", outcome.value))
+                    failed_result = result
                     # The router already decided a replay is unsafe or pointless.
                     break
                 return StepResult(
@@ -101,6 +103,7 @@ class Orchestrator:
             domain=domain,
             action=action,
             success=False,
+            result=failed_result,  # keeps outcome, retry_after, requires_review
             error=last_error,
             duration_ms=round(duration, 1),
         )
