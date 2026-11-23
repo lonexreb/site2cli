@@ -90,7 +90,7 @@ class BrowserExplorer:
             )
 
             # Record workflow from LLM exploration history
-            if self._registry and result.get("history"):
+            if self._registry and result.get("history") and result.get("outcome") == "success":
                 self._record_workflow(
                     domain=domain,
                     action_name=action,
@@ -116,11 +116,19 @@ class BrowserExplorer:
 
             client = anthropic.Anthropic(api_key=config.llm.get_api_key())
         except (ImportError, ValueError) as e:
-            return {"error": str(e), "message": "LLM not available for browser exploration"}
+            return {
+                "error": str(e),
+                "message": "LLM not available for browser exploration",
+                "outcome": "failed",
+                "dispatched": False,  # no page action was taken
+            }
 
         max_steps = 25
         history: list[dict] = []
         result_data: dict = {}
+        # Only an explicit "done" from the agent counts as completion; an LLM
+        # error, an unparseable reply or running out of steps does not.
+        outcome = "failed"
 
         # Step 0: Page preparation — cookie banners and auth detection
         try:
@@ -140,6 +148,8 @@ class BrowserExplorer:
                 _domain = _urlparse(page.url).hostname or ""
                 return {
                     "error": "Auth required",
+                    "outcome": "auth_required",
+                    "dispatched": False,  # detected before any page action
                     "auth_kind": auth_result.kind,
                     "provider": auth_result.provider,
                     "suggestion": f"Run site2cli auth login {_domain}",
@@ -270,6 +280,7 @@ Respond with ONLY the JSON object."""
 
             if action == "done":
                 result_data = instruction.get("result", {})
+                outcome = "success"
                 break
             elif action == "fail":
                 result_data = {"error": instruction.get("reason", "Unknown failure")}
@@ -414,11 +425,15 @@ Respond with ONLY the JSON object."""
                 except ValueError:
                     await page.wait_for_timeout(2000)
 
-        return {
+        result = {
             "result": result_data,
             "steps_taken": len(history),
             "history": history,
+            "outcome": outcome,
         }
+        if outcome != "success":
+            result["error"] = result_data.get("error") or "Browser agent did not reach the goal"
+        return result
 
 
     def _record_workflow(
