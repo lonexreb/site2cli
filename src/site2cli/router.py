@@ -44,7 +44,10 @@ class Router:
         """
         site = self._registry.get_site(domain)
         if not site:
-            return await self._fallback_browser(domain, action_name, params)
+            try:
+                return await self._fallback_browser(domain, action_name, params)
+            except SessionError as exc:
+                return failure(Outcome.FAILED, str(exc), dispatched=False)
 
         action = _find_action(site, action_name)
         if not action:

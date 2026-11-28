@@ -117,16 +117,35 @@ async def test_named_sessions_persist_isolate_and_close(base_url, data_dir):
         other = _body(await client.execute("local.test", "whoami", session="b"))
         assert "cookie:anon" in other and "storage:null" in other
 
+        # Two requests racing to create one session must share a single browser.
+        first, second = await asyncio.gather(
+            client.execute("local.test", "login", session="c"),
+            client.execute("local.test", "whoami", session="c"),
+        )
+        assert first.get("outcome", "success") == second.get("outcome", "success") == "success"
+        assert len(mgr._sessions["c"].browser.contexts) == 1
+        await client.close_session("c")
+
         assert sorted(await client.list_sessions()) == ["a", "b"]
         _, ctx_a = mgr.get("a")
         assert len(ctx_a.pages) <= 1  # per-call pages are closed
 
         # A browser that died underneath its session is reported, not reused.
         browser_b, _ = mgr.get("b")
+        stopped: list[bool] = []
+        driver_b = mgr._sessions["b"].playwright
+        real_stop = driver_b.stop
+
+        async def stop() -> None:
+            stopped.append(True)
+            await real_stop()
+
+        driver_b.stop = stop
         await browser_b.close()
         dead = await client.execute("local.test", "whoami", session="b")
         assert dead["outcome"] == "failed" and "lost its browser" in dead["error"]
         assert await client.list_sessions() == ["a"]
+        assert stopped == [True]  # the dead session's driver was released
 
         await client.close_session("a")
         await client.close_session("a")  # second close is a no-op

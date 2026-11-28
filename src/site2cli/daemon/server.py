@@ -35,16 +35,19 @@ class DaemonServer:
         server = await asyncio.start_unix_server(
             self._handle_client, path=str(self._socket_path)
         )
+        # Anyone who can connect can drive the user's logged-in browsers.
+        self._socket_path.chmod(0o600)
         logger.info("Daemon listening on %s", self._socket_path)
 
-        async with server:
-            while self._running:
-                await asyncio.sleep(0.5)
-
-        # Cleanup
-        await self._session_mgr.close_all()
-        if self._socket_path.exists():
-            self._socket_path.unlink()
+        try:
+            async with server:
+                while self._running:
+                    await asyncio.sleep(0.5)
+        finally:
+            # Also on cancellation or interrupt: browsers must not outlive us.
+            await self._session_mgr.close_all()
+            if self._socket_path.exists():
+                self._socket_path.unlink()
 
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -77,6 +80,30 @@ class DaemonServer:
             writer.close()
             await writer.wait_closed()
 
+    async def _select_session(self, params: dict) -> None:
+        """Run the rest of this request in the named session, if one was given.
+
+        Each connection is handled in its own task, so the selection cannot
+        leak into another request. Browser options only matter when the
+        session does not exist yet; an existing session keeps its browser.
+        """
+        name = params.get("session")
+        if not name:
+            return  # no session requested: an ordinary one-off browser
+        current_session.set(name)
+        options = params.get("browser") or {}
+        if options and name not in self._session_mgr.list():
+            from site2cli.browser.context import create_browser_context
+
+            async with create_browser_context(
+                session_manager=self._session_mgr,
+                session_name=name,
+                profile=options.get("profile"),
+                headless=options.get("headless"),
+                proxy={"server": options["proxy"]} if options.get("proxy") else None,
+            ):
+                pass
+
     async def _dispatch(self, method: str, params: dict) -> dict:
         """Dispatch a JSON-RPC method."""
         if method == "list_sessions":
@@ -105,8 +132,7 @@ class DaemonServer:
             return {"session": name, "status": "closed"}
 
         elif method == "execute":
-            # Each connection runs in its own task, so this is per-request.
-            current_session.set(params.get("session") or "default")
+            await self._select_session(params)
             domain = params.get("domain", "")
             action = params.get("action", "")
             action_params = params.get("params", {})
@@ -130,8 +156,7 @@ class DaemonServer:
 
             from site2cli.discovery.capture import TrafficCapture
 
-            if params.get("session"):
-                current_session.set(params["session"])
+            await self._select_session(params)
             parsed = urlparse(url)
             domain = parsed.hostname or url
             capture = TrafficCapture(target_domain=domain)

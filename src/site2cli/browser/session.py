@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import atexit
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ class SessionManager:
 
     def __init__(self) -> None:
         self._sessions: dict[str, _Session] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         atexit.register(self._sync_close_all)
 
     def register(
@@ -48,22 +50,22 @@ class SessionManager:
         """Register a browser session and take ownership of its resources."""
         self._sessions[name] = _Session(browser, context, playwright, profile)
 
-    def get(self, name: str, profile: str | None = None) -> tuple[Any, Any] | None:
-        """Get a live session by name, or None if there is none.
+    def lock(self, name: str) -> asyncio.Lock:
+        """Lock held while a session is looked up or created.
 
-        Raises SessionError if the session exists but its browser has gone
-        away, or if it was created with a different profile.
+        Without it two concurrent requests for a new session would each launch
+        a browser and the second would overwrite (and leak) the first.
+        """
+        return self._locks.setdefault(name, asyncio.Lock())
+
+    def get(self, name: str, profile: str | None = None) -> tuple[Any, Any] | None:
+        """Get a session by name, or None if there is none.
+
+        Raises SessionError if it was created with a different profile.
         """
         session = self._sessions.get(name)
         if session is None:
             return None
-        if session.browser is not None and not session.browser.is_connected():
-            del self._sessions[name]
-            raise SessionError(
-                f"Session '{name}' lost its browser and was removed. "
-                "Run the command again to start a fresh session; "
-                "its login state is gone."
-            )
         if profile and profile != session.profile:
             raise SessionError(
                 f"Session '{name}' uses profile {session.profile!r}, not {profile!r}. "

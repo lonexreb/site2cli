@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 from pathlib import Path
 from typing import Optional
@@ -61,6 +62,18 @@ def _daemon_call(method: str, params: dict) -> dict:
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
+
+
+def _browser_options(headless: bool, profile: str | None, proxy: str | None) -> dict:
+    """Browser flags to forward to the daemon; used when it creates the session."""
+    options: dict = {}
+    if not headless:
+        options["headless"] = False
+    if profile:
+        options["profile"] = profile
+    if proxy:
+        options["proxy"] = proxy
+    return options
 
 
 def _run_async(coro):
@@ -150,13 +163,23 @@ def discover(
 
     if session and not replay:
         # Capture inside the daemon's session, then continue from its trace.
+        import shutil
         import tempfile
 
-        replay = str(Path(tempfile.mkdtemp(prefix="site2cli-")) / "trace.json")
+        # The trace holds captured headers and bodies; never leave it behind.
+        trace_dir = Path(tempfile.mkdtemp(prefix="site2cli-"))
+        atexit.register(shutil.rmtree, trace_dir, ignore_errors=True)
+        replay = str(trace_dir / "trace.json")
         with console.status(f"[bold green]Capturing in session '{session}'..."):
             _daemon_call(
                 "discover",
-                {"url": url, "session": session, "action": action, "trace_path": replay},
+                {
+                    "url": url,
+                    "session": session,
+                    "action": action,
+                    "trace_path": replay,
+                    "browser": _browser_options(headless, profile, proxy),
+                },
             )
 
     # Step 1: Capture traffic (or replay from a saved trace)
@@ -336,7 +359,13 @@ def run(
         if session:
             result = _daemon_call(
                 "execute",
-                {"session": session, "domain": domain, "action": action, "params": param_dict},
+                {
+                    "session": session,
+                    "domain": domain,
+                    "action": action,
+                    "params": param_dict,
+                    "browser": _browser_options(not no_headless, profile, proxy),
+                },
             )
         else:
             result = _run_async(router.execute(domain, action, param_dict))
