@@ -2,29 +2,76 @@
 
 from __future__ import annotations
 
+import asyncio
 import atexit
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from playwright.async_api import Browser, BrowserContext
+    from playwright.async_api import Browser, BrowserContext, Playwright
+
+# The session selected for the current task (a daemon request or a CLI
+# command). The browser context factory reads it, so every tier and discovery
+# honour the selection without threading a parameter through each of them.
+current_session: ContextVar[str | None] = ContextVar("site2cli_session", default=None)
+
+
+class SessionError(RuntimeError):
+    """A named session cannot be used as requested."""
+
+
+@dataclass
+class _Session:
+    browser: Browser | None
+    context: BrowserContext
+    # The Playwright driver. Owned here so the session outlives the call
+    # that created it; stopping it kills every browser it launched.
+    playwright: Playwright | None = None
+    profile: str | None = None
 
 
 class SessionManager:
-    """Manages named browser sessions for reuse across calls."""
+    """Owns named browser sessions: driver, browser, context and cleanup."""
 
     def __init__(self) -> None:
-        self._sessions: dict[str, tuple[Browser | None, BrowserContext]] = {}
+        self._sessions: dict[str, _Session] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         atexit.register(self._sync_close_all)
 
     def register(
-        self, name: str, browser: Browser | None, context: BrowserContext
+        self,
+        name: str,
+        browser: Browser | None,
+        context: BrowserContext,
+        playwright: Playwright | None = None,
+        profile: str | None = None,
     ) -> None:
-        """Register a browser session."""
-        self._sessions[name] = (browser, context)
+        """Register a browser session and take ownership of its resources."""
+        self._sessions[name] = _Session(browser, context, playwright, profile)
 
-    def get(self, name: str) -> tuple[Any, Any] | None:
-        """Get an existing session by name, or None."""
-        return self._sessions.get(name)
+    def lock(self, name: str) -> asyncio.Lock:
+        """Lock held while a session is looked up or created.
+
+        Without it two concurrent requests for a new session would each launch
+        a browser and the second would overwrite (and leak) the first.
+        """
+        return self._locks.setdefault(name, asyncio.Lock())
+
+    def get(self, name: str, profile: str | None = None) -> tuple[Any, Any] | None:
+        """Get a session by name, or None if there is none.
+
+        Raises SessionError if it was created with a different profile.
+        """
+        session = self._sessions.get(name)
+        if session is None:
+            return None
+        if profile and profile != session.profile:
+            raise SessionError(
+                f"Session '{name}' uses profile {session.profile!r}, not {profile!r}. "
+                f"Close it with: site2cli session close {name}"
+            )
+        return session.browser, session.context
 
     def list(self) -> list[str]:
         """List active session names."""
@@ -32,18 +79,21 @@ class SessionManager:
 
     async def close(self, name: str) -> None:
         """Close and remove a named session."""
+        # Popped first, so each resource is released exactly once.
         session = self._sessions.pop(name, None)
-        if session:
-            browser, context = session
+        if session is None:
+            return
+        for resource, release in (
+            (session.context, "close"),
+            (session.browser, "close"),
+            (session.playwright, "stop"),
+        ):
+            if resource is None:
+                continue
             try:
-                await context.close()
+                await getattr(resource, release)()
             except Exception:
-                pass
-            if browser:
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
+                pass  # already closed or disconnected
 
     async def close_all(self) -> None:
         """Close all sessions."""

@@ -7,7 +7,7 @@ import json
 import logging
 from pathlib import Path
 
-from site2cli.browser.session import SessionManager
+from site2cli.browser.session import current_session, get_session_manager
 
 logger = logging.getLogger("site2cli.daemon")
 
@@ -17,7 +17,9 @@ class DaemonServer:
 
     def __init__(self, socket_path: Path) -> None:
         self._socket_path = socket_path
-        self._session_mgr = SessionManager()
+        # The same owner the browser context factory uses, so list/close
+        # address the sessions that actions actually run in.
+        self._session_mgr = get_session_manager()
         self._running = True
 
     @property
@@ -33,16 +35,19 @@ class DaemonServer:
         server = await asyncio.start_unix_server(
             self._handle_client, path=str(self._socket_path)
         )
+        # Anyone who can connect can drive the user's logged-in browsers.
+        self._socket_path.chmod(0o600)
         logger.info("Daemon listening on %s", self._socket_path)
 
-        async with server:
-            while self._running:
-                await asyncio.sleep(0.5)
-
-        # Cleanup
-        await self._session_mgr.close_all()
-        if self._socket_path.exists():
-            self._socket_path.unlink()
+        try:
+            async with server:
+                while self._running:
+                    await asyncio.sleep(0.5)
+        finally:
+            # Also on cancellation or interrupt: browsers must not outlive us.
+            await self._session_mgr.close_all()
+            if self._socket_path.exists():
+                self._socket_path.unlink()
 
     async def _handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -75,6 +80,30 @@ class DaemonServer:
             writer.close()
             await writer.wait_closed()
 
+    async def _select_session(self, params: dict) -> None:
+        """Run the rest of this request in the named session, if one was given.
+
+        Each connection is handled in its own task, so the selection cannot
+        leak into another request. Browser options only matter when the
+        session does not exist yet; an existing session keeps its browser.
+        """
+        name = params.get("session")
+        if not name:
+            return  # no session requested: an ordinary one-off browser
+        current_session.set(name)
+        options = params.get("browser") or {}
+        if options and name not in self._session_mgr.list():
+            from site2cli.browser.context import create_browser_context
+
+            async with create_browser_context(
+                session_manager=self._session_mgr,
+                session_name=name,
+                profile=options.get("profile"),
+                headless=options.get("headless"),
+                proxy={"server": options["proxy"]} if options.get("proxy") else None,
+            ):
+                pass
+
     async def _dispatch(self, method: str, params: dict) -> dict:
         """Dispatch a JSON-RPC method."""
         if method == "list_sessions":
@@ -84,14 +113,18 @@ class DaemonServer:
             name = params.get("name", "default")
             from site2cli.browser.context import create_browser_context
 
-            ctx_mgr = create_browser_context(
+            async with create_browser_context(
                 profile=params.get("profile"),
                 session_manager=self._session_mgr,
                 session_name=name,
                 inject_cookies_for=params.get("domain"),
-            )
-            browser, context, page = await ctx_mgr.__aenter__()
+            ):
+                pass  # the session manager keeps it alive after this block
             return {"session": name, "status": "created"}
+
+        elif method == "close_all_sessions":
+            await self._session_mgr.close_all()
+            return {"status": "closed"}
 
         elif method == "close_session":
             name = params.get("name", "default")
@@ -99,7 +132,7 @@ class DaemonServer:
             return {"session": name, "status": "closed"}
 
         elif method == "execute":
-            name = params.get("session", "default")
+            await self._select_session(params)
             domain = params.get("domain", "")
             action = params.get("action", "")
             action_params = params.get("params", {})
@@ -123,16 +156,29 @@ class DaemonServer:
 
             from site2cli.discovery.capture import TrafficCapture
 
+            await self._select_session(params)
             parsed = urlparse(url)
             domain = parsed.hostname or url
             capture = TrafficCapture(target_domain=domain)
-            exchanges = await capture.capture_page_traffic(
-                url, duration_seconds=params.get("duration", 15)
-            )
-            return {
-                "domain": domain,
-                "exchanges": len(exchanges),
-            }
+            if params.get("action"):
+                from site2cli.tiers.browser_explorer import BrowserExplorer
+
+                explored = await BrowserExplorer().explore(url, params["action"])
+                exchanges = explored.get("exchanges", [])
+            else:
+                exchanges = await capture.capture_page_traffic(
+                    url, duration_seconds=params.get("duration", 15)
+                )
+            result = {"domain": domain, "exchanges": len(exchanges)}
+            if params.get("trace_path"):
+                # Hand the capture back as a trace file; it does not fit a reply.
+                from site2cli.discovery.trace import save_trace
+
+                save_trace(
+                    exchanges, Path(params["trace_path"]), site_url=url, target_domain=domain
+                )
+                result["trace_path"] = params["trace_path"]
+            return result
 
         elif method == "shutdown":
             self._running = False

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from site2cli.browser.session import SessionError
 from site2cli.config import get_config
 from site2cli.models import SiteAction, SiteEntry, Tier
 from site2cli.outcome import (
@@ -43,7 +44,10 @@ class Router:
         """
         site = self._registry.get_site(domain)
         if not site:
-            return await self._fallback_browser(domain, action_name, params)
+            try:
+                return await self._fallback_browser(domain, action_name, params)
+            except SessionError as exc:
+                return failure(Outcome.FAILED, str(exc), dispatched=False)
 
         action = _find_action(site, action_name)
         if not action:
@@ -62,6 +66,10 @@ class Router:
             except (TierUnavailableError, ImportError):
                 # ImportError: an optional dependency (e.g. Playwright) is absent.
                 continue  # Nothing was dispatched; not a failure of the action.
+            except SessionError as exc:
+                # Raised while acquiring the browser, before any page action.
+                # Do not continue on another tier outside the chosen session.
+                return failure(Outcome.FAILED, str(exc), dispatched=False)
             except Exception as exc:
                 # The tier started work, so completion cannot be established.
                 result = failure(
