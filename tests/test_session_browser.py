@@ -12,6 +12,7 @@ import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 
@@ -48,7 +49,7 @@ class _Site(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def base_url():
+def base_url() -> Iterator[str]:
     srv = ThreadingHTTPServer(("127.0.0.1", 0), _Site)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{srv.server_address[1]}"
@@ -57,7 +58,7 @@ def base_url():
 
 
 @pytest.fixture
-def data_dir(monkeypatch: pytest.MonkeyPatch):
+def data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     # Unix socket paths are limited to ~104 bytes; pytest's tmp_path is too long.
     path = Path(tempfile.mkdtemp(prefix="s2c"))
     monkeypatch.setenv("XDG_DATA_HOME", str(path))
@@ -91,7 +92,7 @@ def _body(result: dict) -> str:
 
 
 @pytest.mark.asyncio
-async def test_named_sessions_persist_isolate_and_close(base_url, data_dir):
+async def test_named_sessions_persist_isolate_and_close(base_url: str, data_dir: Path) -> None:
     try:
         from playwright.async_api import async_playwright
 
@@ -128,7 +129,13 @@ async def test_named_sessions_persist_isolate_and_close(base_url, data_dir):
 
         assert sorted(await client.list_sessions()) == ["a", "b"]
         _, ctx_a = mgr.get("a")
-        assert len(ctx_a.pages) <= 1  # per-call pages are closed
+        # Overlapping calls each close their own page; the keeper page survives.
+        overlapping = await asyncio.gather(
+            *(client.execute("local.test", "whoami", session="a") for _ in range(3))
+        )
+        assert all("cookie:alice" in _body(r) for r in overlapping)
+        assert len(ctx_a.pages) == 1
+        assert "cookie:alice" in _body(await client.execute("local.test", "whoami", session="a"))
 
         # A browser that died underneath its session is reported, not reused.
         browser_b, _ = mgr.get("b")

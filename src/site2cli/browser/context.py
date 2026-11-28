@@ -57,11 +57,14 @@ async def create_browser_context(
             browser, context, page = await _launch(pw, profile, proxy, headless, inject_cookies_for)
             yield browser, context, page  # type: ignore[misc]
         finally:
-            if browser:
-                await browser.close()
-            elif context:
-                await context.close()
-            await pw.stop()
+            try:
+                if browser:
+                    await browser.close()
+                elif context:
+                    await context.close()
+            finally:
+                # Always release the driver, even if closing the browser raised.
+                await pw.stop()
         return
 
     # Managed session: look up or create under the session's lock, but do not
@@ -85,9 +88,12 @@ async def create_browser_context(
         else:
             pw = await _start_playwright()
             try:
-                browser, context, page = await _launch(
+                browser, context, _keeper = await _launch(
                     pw, profile, proxy, headless, inject_cookies_for
                 )
+                # The launch page stays open for the session's lifetime, so
+                # every call can close its own page without emptying the context.
+                page = await context.new_page()
             except BaseException:
                 await pw.stop()
                 raise
@@ -167,11 +173,11 @@ async def _launch(
 async def _close_temp_page(context: BrowserContext, page: Page) -> None:
     """Close a per-call page in a long-lived session so pages don't pile up.
 
-    The last page is left open: closing every page of a persistent profile
-    context can take the browser down with it.
+    The session's keeper page (opened at launch) is never passed here, so
+    overlapping calls cannot close the last page: closing every page of a
+    persistent profile context can take the browser down with it.
     """
     try:
-        if len(context.pages) > 1:
-            await page.close()
+        await page.close()
     except Exception:
         pass  # the browser is already gone; the next get() reports it
