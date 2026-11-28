@@ -281,12 +281,26 @@ def discover(
     # Step 6: Register site
     registry = _get_registry()
     action_names = make_unique_operation_ids(endpoints)
+    # Captured in a browser, so each endpoint starts as an unverified HTTP
+    # candidate. Re-discovery drops old "verified" evidence but keeps an
+    # explicit browser-only requirement the user set.
+    from site2cli.models import Transport
+
+    previous = registry.get_site(domain)
+    browser_only = {
+        a.name for a in (previous.actions if previous else [])
+        if a.transport is Transport.BROWSER_REQUIRED
+    }
     actions = [
         SiteAction(
             name=name,
             description=ep.description,
             tier=Tier.API,
             endpoint=ep,
+            transport=(
+                Transport.BROWSER_REQUIRED if name in browser_only
+                else Transport.HTTP_CANDIDATE
+            ),
         )
         for ep, name in zip(endpoints, action_names)
     ]
@@ -1188,6 +1202,7 @@ def sites_show(domain: str = typer.Argument(help="Site domain to show")) -> None
         table = Table(title="Actions")
         table.add_column("Name", style="bold")
         table.add_column("Tier")
+        table.add_column("Transport")
         table.add_column("Health")
         table.add_column("Success/Fail")
         table.add_column("Description")
@@ -1196,11 +1211,36 @@ def sites_show(domain: str = typer.Argument(help="Site domain to show")) -> None
             table.add_row(
                 action.name,
                 action.tier.value,
+                action.transport.value,
                 action.health.value,
                 f"{action.success_count}/{action.failure_count}",
                 action.description[:50] if action.description else "",
             )
         console.print(table)
+
+
+@sites_app.command("transport")
+def sites_transport(
+    domain: str = typer.Argument(help="Site domain"),
+    action: str = typer.Argument(help="Action name"),
+    status: str = typer.Argument(
+        help="browser_required (never use direct HTTP) or http_candidate (allow it again)"
+    ),
+) -> None:
+    """Set how an action may be executed.
+
+    http_verified is not accepted: only a real successful direct call sets it.
+    """
+    from site2cli.models import Transport
+
+    allowed = {Transport.BROWSER_REQUIRED.value, Transport.HTTP_CANDIDATE.value}
+    if status not in allowed:
+        console.print(f"[red]Status must be one of: {', '.join(sorted(allowed))}[/red]")
+        raise typer.Exit(1)
+    if not _get_registry().update_action_transport(domain, action, Transport(status)):
+        console.print(f"[red]No action '{action}' on {domain}.[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]{domain}/{action} is now {status}[/green]")
 
 
 @sites_app.command("remove")

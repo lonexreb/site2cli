@@ -6,7 +6,7 @@ import re
 
 from site2cli.browser.session import SessionError
 from site2cli.config import get_config
-from site2cli.models import SiteAction, SiteEntry, Tier
+from site2cli.models import SiteAction, SiteEntry, Tier, Transport
 from site2cli.outcome import (
     REJECTED,
     SAFE_METHODS,
@@ -60,7 +60,10 @@ class Router:
 
         # Try the action's current tier, then fall back
         last: dict | None = None
+        browser_only = action.transport is Transport.BROWSER_REQUIRED
         for tier in _tier_fallback_order(action.tier):
+            if tier is Tier.API and browser_only:
+                continue  # explicit requirement; survives any success count
             try:
                 result = await self._execute_tier(site, action, tier, params)
             except (TierUnavailableError, ImportError):
@@ -80,6 +83,8 @@ class Router:
                 )
 
             outcome = outcome_of(result)
+            if tier is Tier.API:
+                self._record_http_evidence(domain, action, outcome)
             if outcome is Outcome.SUCCESS:
                 self._registry.record_action_result(domain, action.name, success=True)
                 self._maybe_promote(domain, action)
@@ -112,14 +117,16 @@ class Router:
                     workflow = load_workflow(workflow_path)
                 except Exception as exc:
                     raise TierUnavailableError(f"Unreadable workflow: {exc}") from exc
-                return await self._workflow_player.replay(
+                result = await self._workflow_player.replay(
                     workflow, params, start_url=site.base_url
                 )
+                return {**result, "transport": "workflow"}
 
         elif tier == Tier.BROWSER:
-            return await self._browser.execute_action(
+            result = await self._browser.execute_action(
                 site.base_url, action.name, params
             )
+            return {**result, "transport": "browser"}
 
         raise TierUnavailableError(f"Cannot execute on tier {tier}")
 
@@ -132,10 +139,27 @@ class Router:
         result = await self._browser.execute_action(url, goal, params)
         return _as_failure(result, outcome_of(result), Tier.BROWSER)
 
+    def _record_http_evidence(
+        self, domain: str, action: SiteAction, outcome: Outcome
+    ) -> None:
+        """Update what is known about direct HTTP from a real direct call."""
+        if outcome is Outcome.SUCCESS:
+            new = Transport.HTTP_VERIFIED
+        elif outcome in REJECTED:
+            # Auth, session or site changes can make old evidence stale. The
+            # endpoint stays registered; it just has to prove itself again.
+            new = Transport.HTTP_CANDIDATE
+        else:
+            return
+        if action.transport is not new:
+            self._registry.update_action_transport(domain, action.name, new)
+
     def _maybe_promote(self, domain: str, action: SiteAction) -> None:
         """Auto-promote action to a higher tier if it's consistently successful."""
         if action.tier == Tier.API:
             return  # Already at highest tier
+        if action.tier == Tier.WORKFLOW and not _may_use_direct_http(action):
+            return  # Browser successes are not evidence that plain HTTP works
 
         # Promote after 5 consecutive successes with 0 recent failures
         if action.success_count >= 5 and action.failure_count == 0:
@@ -145,6 +169,20 @@ class Router:
                 new_tier = Tier.API
 
             self._registry.update_action_tier(domain, action.name, new_tier)
+
+
+def _may_use_direct_http(action: SiteAction) -> bool:
+    """Whether an action may be moved onto the direct-HTTP tier.
+
+    Verified actions may. An unverified one may only if it is a safe read, so
+    that the first real call doubles as the check; a mutation is never sent
+    just to find out whether plain HTTP works.
+    """
+    if action.endpoint is None or action.transport is Transport.BROWSER_REQUIRED:
+        return False
+    if action.transport is Transport.HTTP_VERIFIED:
+        return True
+    return action.endpoint.method.upper() in SAFE_METHODS
 
 
 def _normalize_action_name(name: str) -> str:

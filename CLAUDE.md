@@ -15,6 +15,7 @@ src/site2cli/
 ├── models.py           # Pydantic v2 data models
 ├── registry.py         # SQLite site registry
 ├── router.py           # Tier router (picks best execution method)
+├── outcome.py          # Execution outcomes shared by all tiers (success, rejected, unknown...)
 ├── discovery/
 │   ├── capture.py      # CDP-based network traffic capture
 │   ├── analyzer.py     # LLM-assisted pattern analysis
@@ -102,12 +103,12 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 569 unit/integration tests (no network)
+pytest                    # 616 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
 
-**Total: 575 tests (569 offline + 6 live; live tests require network access and are reported separately).**
+**Total: 622 tests (616 offline + 6 live; live tests require network access and are reported separately).**
 
 **Test files:**
 - `test_analyzer.py` — Traffic analysis & grouping (23 tests)
@@ -149,6 +150,10 @@ pytest -v                 # Verbose output
 - `test_crawl_robots.py` — robots.txt parsing, allow/disallow, sitemaps (12 tests)
 - `test_monitor.py` — Diff computation, watcher, webhook, registry CRUD (41 tests)
 - `test_screenshot.py` — Screenshot model, CLI help, formats (8 tests)
+- `test_outcomes.py` — Execution outcomes, safe cross-tier fallback, no duplicate sends (local HTTP server)
+- `test_cookie_jar.py` — Stored cookies to scoped HTTPX jars (real HTTPX request preparation)
+- `test_session_browser.py` — Named sessions through the daemon with real Chromium (skips if absent)
+- `test_transport_gate.py` — Transport status, evidence-based promotion, registry migration
 
 
 ## Live Validation (8 Experiments)

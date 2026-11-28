@@ -243,7 +243,7 @@ class TestExecuteBrowserTier:
         router._browser.execute_action = mock_execute_action
 
         result = await router.execute("browser.example.com", "browse_action", {})
-        assert result == browser_result
+        assert result == {**browser_result, "transport": "browser"}
 
 
 class TestFallbackOnException:

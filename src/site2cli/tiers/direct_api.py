@@ -51,14 +51,14 @@ class DirectAPIExecutor:
             try:
                 data = method(**params)
             except Exception as exc:
-                return {**classify_exception(exc), "transport": "generated_client"}
+                return {**classify_exception(exc), **self._transport("generated_client")}
             finally:
                 with contextlib.suppress(Exception):
                     client.close()
             return {
                 "outcome": Outcome.SUCCESS.value,
                 "data": data,
-                "transport": "generated_client",
+                **self._transport("generated_client"),
             }
 
         return await self._execute_http(site, endpoint, params, expects_json)
@@ -93,10 +93,18 @@ class DirectAPIExecutor:
             if not client_class:
                 return None
 
+            kwargs: dict[str, Any] = {}
+            proxy_url = self._config.proxy.get_httpx_proxy()
+            if proxy_url:
+                # A client generated before proxies were supported rejects
+                # this argument; we then use raw HTTP, which honours the proxy,
+                # rather than silently connecting directly.
+                kwargs["proxy"] = proxy_url
             client = client_class(
                 base_url=site.base_url,
                 headers=self._auth.get_auth_headers(site.domain, site.auth_type),
                 cookies=self._auth.get_httpx_cookies(site.domain),
+                **kwargs,
             )
             method = getattr(client, endpoint.description.replace(" ", "_").lower(), None)
             if method is None:
@@ -151,12 +159,16 @@ class DirectAPIExecutor:
                     json=body_params or None,
                 )
             except httpx.HTTPError as exc:
-                return {**classify_exception(exc), "transport": "http"}
+                return {**classify_exception(exc), **self._transport("http")}
 
         return {
             **classify_response(response, expects_json=expects_json),
-            "transport": "http",
+            **self._transport("http"),
         }
+
+    def _transport(self, name: str) -> dict:
+        """Non-secret description of how the request was sent."""
+        return {"transport": name, "via_proxy": bool(self._config.proxy.get_httpx_proxy())}
 
 
 def _expects_json(endpoint: EndpointInfo) -> bool:
