@@ -88,6 +88,7 @@ experiments/
 ├── experiment_13_spec_accuracy.py    # Spec accuracy vs ground truth
 ├── experiment_14_resilience.py       # Health monitoring & resilience
 ├── experiment_15_live_browser_validation.py  # Real Playwright browser → CDP capture pipeline
+├── experiment_16_reliability_benchmark.py    # Local-fixture reliability benchmark → results/
 └── run_all_experiments.py            # Master runner for all experiments
 ```
 
@@ -153,6 +154,7 @@ pytest -v                 # Verbose output
 - `test_outcomes.py` — Execution outcomes, safe cross-tier fallback, no duplicate sends (local HTTP server)
 - `test_cookie_jar.py` — Stored cookies to scoped HTTPX jars (real HTTPX request preparation)
 - `test_session_browser.py` — Named sessions through the daemon with real Chromium (skips if absent)
+- `test_reliability_benchmark.py` — Runs experiment 16 once; fails if any scenario regresses
 - `test_transport_gate.py` — Transport status, evidence-based promotion, registry migration
 
 
@@ -170,6 +172,7 @@ Full pre-launch validation suite: `python experiments/run_all_experiments.py`
 | 13 | Spec Accuracy | 80% accuracy vs ground truth (5 APIs) |
 | 14 | Resilience | 100% health check accuracy, drift detection, bundle integrity |
 | 15 | Live Browser Discovery | Real Playwright browser → CDP capture → full pipeline (5 sites) |
+| 16 | Reliability Benchmark | Outcome classification, session reuse and no duplicate sends on a local fixture ([results](experiments/results/reliability_report.md)); synthetic challenge only, no protection provider tested |
 
 Experiments 8-14 pass in ~74 seconds. Experiment 15 requires `site2cli[browser]` + Chromium.
 

@@ -1,0 +1,608 @@
+{
+  "generated_at": "2026-11-28T01:51:19+00:00",
+  "environment": {
+    "python": "3.10.0",
+    "platform": "macOS-26.2-arm64-arm-64bit",
+    "site2cli": "0.5.0",
+    "httpx": "0.28.1",
+    "playwright": "1.58.0",
+    "commit": "c481185"
+  },
+  "conditions": {
+    "mode": "headless Chromium; direct HTTP via httpx; no proxy; LLM browser tier stubbed",
+    "repeats": 3,
+    "chromium_available": true,
+    "targets": "local fixture only (127.0.0.1)"
+  },
+  "cases": [
+    {
+      "id": "json_read",
+      "scenario": "Public JSON read with parameters",
+      "transport": "http",
+      "expect_outcome": "success",
+      "expect_requests": {
+        "/items": 1
+      },
+      "expect_text": "\"query\": \"q=shoes\"",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/items": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 49.6,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/items": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.1,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/items": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.1,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "cookie_valid",
+      "scenario": "Cookie-authenticated read",
+      "transport": "http",
+      "expect_outcome": "success",
+      "expect_requests": {
+        "/account": 1
+      },
+      "expect_text": "alice",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/account": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.4,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/account": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6.6,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/account": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.3,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "cookie_expired",
+      "scenario": "Same read after the cookie expired",
+      "transport": "http",
+      "expect_outcome": "auth_required",
+      "expect_requests": {
+        "/account": 1
+      },
+      "expect_text": "",
+      "note": "Browser fallback is attempted (the request was refused) and fails here.",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "auth_required",
+          "correct": true,
+          "requests": {
+            "/account": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 5.9,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "auth_required",
+          "correct": true,
+          "requests": {
+            "/account": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 5.3,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "auth_required",
+          "correct": true,
+          "requests": {
+            "/account": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 6.3,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "forbidden",
+      "scenario": "Forbidden endpoint",
+      "transport": "http",
+      "expect_outcome": "forbidden",
+      "expect_requests": {
+        "/forbidden": 1
+      },
+      "expect_text": "",
+      "note": "Browser fallback is attempted and fails here.",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "forbidden",
+          "correct": true,
+          "requests": {
+            "/forbidden": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 4.9,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "forbidden",
+          "correct": true,
+          "requests": {
+            "/forbidden": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 4.8,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "forbidden",
+          "correct": true,
+          "requests": {
+            "/forbidden": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 5.0,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "rate_limited",
+      "scenario": "Rate-limited endpoint",
+      "transport": "http",
+      "expect_outcome": "rate_limited",
+      "expect_requests": {
+        "/limited": 1
+      },
+      "expect_text": "\"7\"",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "rate_limited",
+          "correct": true,
+          "requests": {
+            "/limited": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 4.7,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "rate_limited",
+          "correct": true,
+          "requests": {
+            "/limited": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.3,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "rate_limited",
+          "correct": true,
+          "requests": {
+            "/limited": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6.6,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "synthetic_challenge",
+      "scenario": "HTTP 200 synthetic challenge page (handling test only)",
+      "transport": "http",
+      "expect_outcome": "challenge",
+      "expect_requests": {
+        "/challenge": 1
+      },
+      "expect_text": "",
+      "note": "Synthetic marker page; not a protection-provider evaluation.",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "challenge",
+          "correct": true,
+          "requests": {
+            "/challenge": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 4.8,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "challenge",
+          "correct": true,
+          "requests": {
+            "/challenge": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 5.1,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "challenge",
+          "correct": true,
+          "requests": {
+            "/challenge": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 1,
+          "human_interventions": 0,
+          "latency_ms": 4.9,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "html_mentions_captcha",
+      "scenario": "Expected HTML that mentions CAPTCHA",
+      "transport": "http",
+      "expect_outcome": "success",
+      "expect_requests": {
+        "/article": 1
+      },
+      "expect_text": "How CAPTCHA works",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/article": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.1,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/article": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6.8,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/article": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6.5,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "dropped_mutation",
+      "scenario": "POST applied, response dropped",
+      "transport": "http",
+      "expect_outcome": "unknown",
+      "expect_requests": {
+        "/order": 1
+      },
+      "expect_text": "requires_review",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "unknown",
+          "correct": true,
+          "requests": {
+            "/order": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.8,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "unknown",
+          "correct": true,
+          "requests": {
+            "/order": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 5.2,
+          "transport": "http",
+          "detail": ""
+        },
+        {
+          "outcome": "unknown",
+          "correct": true,
+          "requests": {
+            "/order": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 4.9,
+          "transport": "http",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "session_reused",
+      "scenario": "Browser workflow, storage reused in a named session",
+      "transport": "browser",
+      "expect_outcome": "success",
+      "expect_requests": {
+        "/login": 1,
+        "/me": 1
+      },
+      "expect_text": "cookie:alice",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/login": 1,
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 2384.7,
+          "transport": "workflow",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/login": 1,
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 2445.5,
+          "transport": "workflow",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/login": 1,
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 2496.6,
+          "transport": "workflow",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "session_fresh",
+      "scenario": "Same workflow in fresh browsers (no session)",
+      "transport": "browser",
+      "expect_outcome": "success",
+      "expect_requests": {
+        "/login": 1,
+        "/me": 1
+      },
+      "expect_text": "cookie:anon",
+      "note": "Control: without a session, login state must not carry over.",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/login": 1,
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 2668.6,
+          "transport": "workflow",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/login": 1,
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 2639.2,
+          "transport": "workflow",
+          "detail": ""
+        },
+        {
+          "outcome": "success",
+          "correct": true,
+          "requests": {
+            "/login": 1,
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 2641.9,
+          "transport": "workflow",
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "id": "workflow_failed_step",
+      "scenario": "Workflow whose final step cannot complete",
+      "transport": "browser",
+      "expect_outcome": "failed",
+      "expect_requests": {},
+      "expect_text": "error",
+      "note": "",
+      "status": "verified",
+      "attempts": [
+        {
+          "outcome": "failed",
+          "correct": true,
+          "requests": {
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6349.7,
+          "transport": "workflow",
+          "detail": ""
+        },
+        {
+          "outcome": "failed",
+          "correct": true,
+          "requests": {
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6385.3,
+          "transport": "workflow",
+          "detail": ""
+        },
+        {
+          "outcome": "failed",
+          "correct": true,
+          "requests": {
+            "/me": 1
+          },
+          "duplicate_side_effects": 0,
+          "fallbacks": 0,
+          "human_interventions": 0,
+          "latency_ms": 6514.4,
+          "transport": "workflow",
+          "detail": ""
+        }
+      ]
+    }
+  ]
+}

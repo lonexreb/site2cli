@@ -166,3 +166,21 @@ names that real clients would reject, fail-open robots), the headline benchmark 
 are projections rather than measurements, and discovery inherently only finds what the
 frontend happens to call while you browse. Treat the engineering as solid and promising,
 and the marketing numbers as directional.
+
+## Execution reliability benchmark (added after this report)
+
+`python experiments/experiment_16_reliability_benchmark.py` runs 11 scenarios against a
+local fixture site and writes [`experiments/results/reliability_report.md`](experiments/results/reliability_report.md)
+and `reliability_results.json` (commit, versions, mode, per-attempt request counts and latency).
+
+What that run supports, and what it does not:
+
+| Behaviour | Status |
+|---|---|
+| 401 / 403 / 429 / dropped response are classified and never counted as success | Verified on the local fixture |
+| An ambiguous POST is not sent twice | Verified on the local fixture |
+| Login state survives across actions in a named session, and not without one | Verified with real Chromium on the local fixture |
+| A synthetic challenge page is reported as a challenge | Verified; handling only |
+| Getting past Cloudflare, DataDome, Akamai or any other protection provider | Untested; no claim is made |
+| CAPTCHA solving, human challenge handoff | Unsupported |
+| Proxies, the LLM-driven browser tier, cross-process daemon use | Untested by this benchmark |
