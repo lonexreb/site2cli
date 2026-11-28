@@ -130,9 +130,10 @@ async def test_named_sessions_persist_isolate_and_close(base_url: str, data_dir:
         assert sorted(await client.list_sessions()) == ["a", "b"]
         _, ctx_a = mgr.get("a")
         # Overlapping calls each close their own page; the keeper page survives.
-        await asyncio.gather(
+        overlapping = await asyncio.gather(
             *(client.execute("local.test", "whoami", session="a") for _ in range(3))
         )
+        assert all("cookie:alice" in _body(r) for r in overlapping)
         assert len(ctx_a.pages) == 1
         assert "cookie:alice" in _body(await client.execute("local.test", "whoami", session="a"))
 
