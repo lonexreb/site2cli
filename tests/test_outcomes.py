@@ -177,13 +177,13 @@ async def test_rejections_are_distinct_and_never_promote(env, path, expected, cl
     if client and expected in (Outcome.CHALLENGE, Outcome.UNEXPECTED_RESPONSE):
         # A generated client only sees undecodable content.
         expected = Outcome.UNEXPECTED_RESPONSE
-    if path in ("/401", "/403") or (path == "/challenge" and not client):
-        # Refused requests may fall back to the browser, which fails here.
-        assert router._browser.calls == 1
-        assert outcome_of(result) is not Outcome.SUCCESS
-    else:
-        assert outcome_of(result) is expected
-        assert router._browser.calls == 0
+    refused = path in ("/401", "/403") or (path == "/challenge" and not client)
+    # The caller always learns why the direct call failed, even when a
+    # fallback to the browser was attempted and failed too.
+    assert outcome_of(result) is expected
+    assert router._browser.calls == (1 if refused else 0)
+    if refused:
+        assert result["fallbacks"][0]["tier"] == "browser"
     assert server.hits == {path: 1}
     success, failures, tier = counts()
     assert success == 0 and failures >= 1 and tier is Tier.API

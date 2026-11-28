@@ -24,6 +24,7 @@ EXPERIMENTS = {
     12: ("experiment_12_mcp_validation.py", "MCP Server Validation (schema/handler checks)"),
     13: ("experiment_13_spec_accuracy.py", "Spec Accuracy Benchmark (ground truth comparison)"),
     14: ("experiment_14_resilience.py", "Resilience & Health Monitoring"),
+    16: ("experiment_16_reliability_benchmark.py", "Reliability Benchmark (local fixture)"),
 }
 
 EXPERIMENTS_DIR = Path(__file__).parent

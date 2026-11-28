@@ -59,7 +59,7 @@ class Router:
             }
 
         # Try the action's current tier, then fall back
-        last: dict | None = None
+        failures: list[dict] = []
         browser_only = action.transport is Transport.BROWSER_REQUIRED
         for tier in _tier_fallback_order(action.tier):
             if tier is Tier.API and browser_only:
@@ -91,13 +91,14 @@ class Router:
                 return result
 
             self._registry.record_action_result(domain, action.name, success=False)
-            last = _as_failure(result, outcome, tier)
-            if not _may_try_next_tier(action, tier, outcome, last):
-                return last
+            failed = _as_failure(result, outcome, tier)
+            failures.append(failed)
+            if not _may_try_next_tier(action, tier, outcome, failed):
+                break
 
-        return last or failure(
-            Outcome.FAILED, f"All tiers failed for {domain}/{action_name}"
-        )
+        if not failures:
+            return failure(Outcome.FAILED, f"All tiers failed for {domain}/{action_name}")
+        return _report(failures)
 
     async def _execute_tier(
         self,
@@ -244,3 +245,20 @@ def _may_try_next_tier(
     if result.get("dispatched") is False or (tier is Tier.API and outcome in REJECTED):
         return True
     return action.endpoint is not None and action.endpoint.method.upper() in SAFE_METHODS
+
+
+def _report(failures: list[dict]) -> dict:
+    """Pick the failure the caller should see when several tiers failed.
+
+    An attempt whose completion is uncertain always wins, because the caller
+    must review it. Otherwise it is the first one: why the action's own tier
+    failed (e.g. auth_required) says more than a fallback's generic failure.
+    """
+    main = next((f for f in failures if f.get("requires_review")), failures[0])
+    others = [f for f in failures if f is not main]
+    if others:
+        main["fallbacks"] = [
+            {"tier": f.get("tier"), "outcome": f["outcome"], "error": f.get("error")}
+            for f in others
+        ]
+    return main

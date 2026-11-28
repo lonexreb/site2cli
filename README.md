@@ -574,6 +574,7 @@ Share and reuse discovered API specs across teams:
 | 13 | Spec Accuracy | 80% accuracy vs ground truth |
 | 14 | Resilience | 100% health check accuracy, drift detection works |
 | 15 | Live Browser Discovery | Real Playwright → CDP capture → full pipeline (5 sites) |
+| 16 | Reliability Benchmark | Outcome classification, session reuse and no duplicate sends on a local fixture ([results](experiments/results/reliability_report.md)); synthetic challenge only, no protection provider tested |
 
 **Experiments 8-14 pass in ~74 seconds.** Experiment 15 requires `site2cli[browser]` + Chromium.
 
