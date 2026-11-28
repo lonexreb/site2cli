@@ -78,16 +78,20 @@ def _browser_options(headless: bool, profile: str | None, proxy: str | None) -> 
 
 def _run_async(coro):
     """Run an async function from sync context."""
+    # Only loop acquisition is guarded: an error raised by the coroutine itself
+    # must propagate, not trigger a second run of an already-awaited coroutine.
     try:
         loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(asyncio.run, coro).result()
-        return loop.run_until_complete(coro)
     except RuntimeError:
         return asyncio.run(coro)
+    if loop.is_closed():
+        return asyncio.run(coro)
+    if loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return loop.run_until_complete(coro)
 
 
 # --- Core Commands ---

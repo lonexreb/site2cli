@@ -187,3 +187,16 @@ def test_run_unknown_action_lists_available(tmp_path, monkeypatch):
     finally:
         # Don't leak the tmp_path-bound config into subsequent tests
         reset_config()
+
+
+def test_run_async_propagates_coroutine_errors():
+    """An error from the coroutine surfaces as-is, not as a coroutine-reuse error."""
+    import pytest
+
+    from site2cli.cli import _run_async
+
+    async def daemon_error():
+        raise RuntimeError("daemon said no")
+
+    with pytest.raises(RuntimeError, match="daemon said no"):
+        _run_async(daemon_error())

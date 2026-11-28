@@ -104,16 +104,16 @@ experiments/
 ## Testing
 
 ```bash
-pytest                    # 616 unit/integration tests (no network)
+pytest                    # 617 unit/integration tests (no network)
 pytest -m live            # 6 live tests (hits jsonplaceholder + httpbin)
 pytest -v                 # Verbose output
 ```
 
-**Total: 622 tests (616 offline + 6 live; live tests require network access and are reported separately).**
+**Total: 623 tests (617 offline + 6 live; live tests require network access and are reported separately).**
 
 **Test files:**
 - `test_analyzer.py` — Traffic analysis & grouping (23 tests)
-- `test_cli.py` — CLI commands via CliRunner (16 tests)
+- `test_cli.py` — CLI commands via CliRunner (17 tests)
 - `test_models.py` — Pydantic model validation (15 tests)
 - `test_router.py` — Router execution, fallback, promotion (15 tests)
 - `test_cookie_banner.py` — Cookie banner detection & dismissal (12 tests)
